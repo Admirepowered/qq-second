@@ -32,7 +32,7 @@ const TITLES: Record<AppRoute['page'], string> = {
 
 export default function App() {
   const route = useNavStore((s) => s.route);
-  const { load, loaded } = usePrefsStore();
+  const { load, loaded, settings } = usePrefsStore();
   const { initAudio, restoreSession } = usePlayerStore();
 
   useEffect(() => {
@@ -94,10 +94,15 @@ export default function App() {
       break;
   }
 
+  const hasBg =
+    (settings.backgroundMode === 'image' && !!settings.backgroundImage) ||
+    settings.backgroundMode === 'artwork' ||
+    settings.backgroundMode === 'color';
+
   return (
     <>
       <AppBackground />
-      <div className="app-shell">
+      <div className={`app-shell${hasBg ? ' has-bg' : ''}`}>
         <Sidebar />
         <div className="content-shell">
           <TopBar />

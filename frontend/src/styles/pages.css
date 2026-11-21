@@ -1,18 +1,22 @@
-/* 设置页 + 本地音乐页 + 歌词页 */
+/* 设置页 + 本地音乐页 */
 .settings-page {
   max-width: 760px;
   margin: 0 auto;
 }
 .settings-section {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--card-glass);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
   margin-bottom: 16px;
 }
 .settings-section h3 {
   font-size: 14.5px;
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: 14px;
+  letter-spacing: 0.3px;
 }
 .setting-row {
   display: flex;
@@ -24,6 +28,7 @@
 }
 .setting-label {
   font-size: 13.5px;
+  font-weight: 500;
 }
 .setting-desc {
   font-size: 12px;
@@ -39,20 +44,26 @@
 
 .seg-group {
   display: flex;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 8px;
+  background: rgba(128, 134, 142, 0.16);
+  border-radius: 10px;
   padding: 3px;
   gap: 2px;
 }
 .seg-item {
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 12.5px;
+  font-weight: 500;
   color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+.seg-item:hover {
+  color: var(--text-primary);
 }
 .seg-item.active {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-dim));
   color: var(--accent-ink);
+  box-shadow: 0 2px 8px rgba(49, 194, 124, 0.35);
 }
 
 .palette-grid {
@@ -67,10 +78,14 @@
   border: 2px solid transparent;
   cursor: pointer;
   position: relative;
+  transition: transform 0.12s;
+}
+.palette-swatch:hover {
+  transform: scale(1.12);
 }
 .palette-swatch.active {
   border-color: #fff;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 input[type='color'] {
   width: 34px;
@@ -114,9 +129,14 @@ input[type='color']::-webkit-color-swatch {
   border: 2px solid transparent;
   cursor: pointer;
   position: relative;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.bg-thumb:hover {
+  transform: scale(1.04);
 }
 .bg-thumb.active {
   border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(49, 194, 124, 0.4);
 }
 .bg-thumb-remove {
   position: absolute;
@@ -145,7 +165,7 @@ input[type='color']::-webkit-color-swatch {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(128, 134, 142, 0.14);
   border-radius: var(--radius-md);
   font-size: 12.5px;
 }
@@ -172,6 +192,7 @@ input[type='color']::-webkit-color-swatch {
   background: #fff;
   padding: 8px;
   margin: 0 auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
 .login-qr img {
   width: 100%;
@@ -182,6 +203,10 @@ input[type='color']::-webkit-color-swatch {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.update-available {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* 本地音乐 */
@@ -198,7 +223,7 @@ input[type='color']::-webkit-color-swatch {
   padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.22);
+  background: rgba(128, 134, 142, 0.16);
   color: var(--text-primary);
   outline: none;
   font-size: 13px;

@@ -11,6 +11,10 @@ import {
   QQPollLogin,
   QQLogout,
   GetVersion,
+  GetAutoStart,
+  SetAutoStart,
+  CheckUpdate,
+  OpenReleasePage,
 } from '../api';
 import { usePrefsStore } from '../store/prefs';
 import { PALETTES } from '../theme';
@@ -30,12 +34,113 @@ export function SettingsPage() {
     <div className="settings-page">
       <AppearanceSection />
       <PlaybackSection />
+      <GeneralSection />
       <AccountSection />
-      <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', padding: '20px 0' }}>
-        QQ Second {version} · 基于 Wails 的本地 + QQ 音乐播放器（游客模式，仅播放服务方授权内容）
-      </div>
+      <AboutSection />
     </div>
   );
+
+  function GeneralSection() {
+    const [autoStart, setAutoStartState] = useState(false);
+    useEffect(() => {
+      GetAutoStart()
+        .then((v) => setAutoStartState(Boolean(v)))
+        .catch(() => {});
+    }, []);
+    return (
+      <div className="settings-section">
+        <h3>通用</h3>
+        <SettingRow
+          label="开机自启动"
+          desc="登录 Windows 后自动运行（当前用户，无需管理员权限）"
+          control={
+            <input
+              type="checkbox"
+              checked={autoStart}
+              onChange={async (e) => {
+                const next = e.target.checked;
+                try {
+                  await SetAutoStart(next);
+                  setAutoStartState(next);
+                } catch (err) {
+                  console.error('autostart failed', err);
+                }
+              }}
+              style={{ width: 20, height: 20, accentColor: 'var(--accent)', cursor: 'pointer' }}
+            />
+          }
+        />
+      </div>
+    );
+  }
+
+  function AboutSection() {
+    const [update, setUpdate] = useState<{
+      hasUpdate: boolean;
+      latestVersion: string;
+      currentVersion: string;
+      releaseNotes?: string;
+    } | null>(null);
+    const [checking, setChecking] = useState(false);
+    const [err, setErr] = useState('');
+
+    const check = async () => {
+      setChecking(true);
+      setErr('');
+      try {
+        const info = (await CheckUpdate()) as never as {
+          hasUpdate: boolean;
+          latestVersion: string;
+          currentVersion: string;
+          releaseNotes?: string;
+        };
+        setUpdate(info);
+      } catch (e) {
+        setErr(String(e));
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    useEffect(() => {
+      void check();
+    }, []);
+
+    return (
+      <div className="settings-section">
+        <h3>关于</h3>
+        <SettingRow
+          label={`QQ Second ${version}`}
+          desc="本地 + QQ 音乐播放器 · 游客模式，仅播放服务方授权内容"
+          control={
+            <button className="btn" onClick={check} disabled={checking}>
+              {checking ? '检查中…' : '检查更新'}
+            </button>
+          }
+        />
+        {err ? <div className="setting-desc" style={{ color: '#ff7b72' }}>检查失败：{err}</div> : null}
+        {update ? (
+          update.hasUpdate ? (
+            <div className="setting-row">
+              <div>
+                <div className="setting-label update-available">
+                  发现新版本 v{update.latestVersion}（当前 v{update.currentVersion}）
+                </div>
+                {update.releaseNotes ? <div className="setting-desc">{update.releaseNotes}</div> : null}
+              </div>
+              <button className="btn primary" onClick={() => OpenReleasePage()}>
+                前往下载
+              </button>
+            </div>
+          ) : (
+            <div className="setting-desc" style={{ padding: '6px 0' }}>
+              已是最新版本{update.latestVersion ? `（latest v${update.latestVersion}）` : ''}
+            </div>
+          )
+        ) : null}
+      </div>
+    );
+  }
 
   function AppearanceSection() {
     return (

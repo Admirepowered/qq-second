@@ -51,7 +51,11 @@ export function AppBackground() {
           <div
             className="backgroundOverlay"
             aria-hidden="true"
-            style={{ background: dark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)' }}
+            style={{
+              background: dark
+                ? 'linear-gradient(180deg, rgba(12,14,16,0.62), rgba(12,14,16,0.5))'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.45))',
+            }}
           />
         </>
       ) : null}

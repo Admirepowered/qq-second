@@ -10,9 +10,6 @@
 :root {
   --bg: #17191c;
   --bg-opaque: #1a1d21;
-  --surface: #20242a;
-  --sidebar: #1b1e23;
-  --player: #1d2126;
   --accent: #31c27c;
   --accent-ink: #ffffff;
   --accent-dim: #2a9c66;
@@ -20,16 +17,50 @@
   --text-primary: #e8eaed;
   --text-secondary: #9aa0a8;
   --border: rgba(255, 255, 255, 0.08);
-  --surface-alpha: 0.88;
-  --surface-soft-alpha: 0.84;
-  --surface-strong-alpha: 0.96;
-  --surface-button-alpha: 0.68;
-
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --player-height: 92px;
   --sidebar-width: 212px;
+
+  /* 毛玻璃面板材质（无背景时的“实体”形态） */
+  --panel-solid: #1b1e23;
+  --panel-solid-strong: #20242a;
+  --panel-glass: rgba(18, 20, 24, 0.55);
+  --panel-glass-strong: rgba(18, 20, 24, 0.68);
+  --card-glass: rgba(24, 27, 31, 0.42);
+  --card-hover: rgba(255, 255, 255, 0.12);
+  --panel-border: rgba(255, 255, 255, 0.07);
+  --panel-highlight: rgba(255, 255, 255, 0.06);
+  --panel-blur: blur(28px) saturate(150%);
+  --card-blur: blur(20px) saturate(140%);
+}
+
+/* 浅色主题 */
+:root[data-theme='light'] {
+  --text-primary: #1c1e22;
+  --text-secondary: #5c6470;
+  --border: rgba(0, 0, 0, 0.08);
+  --panel-solid: #f6f8fa;
+  --panel-solid-strong: #ffffff;
+  --panel-glass: rgba(255, 255, 255, 0.6);
+  --panel-glass-strong: rgba(255, 255, 255, 0.72);
+  --card-glass: rgba(255, 255, 255, 0.55);
+  --card-hover: rgba(255, 255, 255, 0.8);
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --panel-highlight: rgba(255, 255, 255, 0.7);
+}
+
+/* 有背景时启用毛玻璃；无背景用实体面板 */
+.app-shell.has-bg {
+  --panel-current: var(--panel-glass);
+  --panel-current-strong: var(--panel-glass-strong);
+  --panel-blur-current: var(--panel-blur);
+}
+.app-shell:not(.has-bg) {
+  --panel-current: var(--panel-solid);
+  --panel-current-strong: var(--panel-solid-strong);
+  --panel-blur-current: none;
 }
 
 html,
