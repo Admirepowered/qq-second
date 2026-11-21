@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 var (
@@ -79,16 +81,16 @@ func (a *App) SendLog(level, message string) {
 	logsWrite("[frontend/" + strings.ToUpper(level) + "] " + message)
 }
 
-// OpenPath 用系统资源管理器打开指定目录（文件夹存在时）。
+// OpenPath 用系统资源管理器打开指定目录（分平台实现，目录不存在时先创建）。
 func (a *App) OpenPath(dir string) {
 	if a.ctx == nil {
 		return
 	}
+	logsWrite("open path: " + dir)
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		_ = os.MkdirAll(dir, 0o755)
 	}
-	explorer := explorerOpen(dir)
-	if explorer != nil {
-		_ = explorer.Start()
-	}
+	// wails runtime 按平台内部分派：Windows ShellExecute / macOS open / Linux xdg-open，
+	// 对目录路径原生支持（直接弹资源管理器/Finder）
+	wailsruntime.BrowserOpenURL(a.ctx, dir)
 }
