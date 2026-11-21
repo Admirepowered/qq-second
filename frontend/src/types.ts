@@ -138,6 +138,8 @@ export interface Settings {
   closeBehavior: 'hide' | 'exit';
   updateProxy: string;
   playbackNetwork: 'direct' | 'proxy';
+  cacheLimitMB: number;
+  cacheDir: string;
   localFolders: string[];
 }
 
@@ -197,6 +199,15 @@ export interface UserAccount {
   myPlaylists: PlaylistInfo[];
 }
 
+export interface CachedSong {
+  fileName: string;
+  mid: string;
+  quality: string;
+  format: string;
+  sizeBytes: number;
+  modTime: number;
+}
+
 export const emptySettings = (): Settings => ({
   colorMode: 'dark',
   palette: 'default',
@@ -212,6 +223,8 @@ export const emptySettings = (): Settings => ({
   closeBehavior: 'hide',
   updateProxy: '',
   playbackNetwork: 'direct',
+  cacheLimitMB: 512,
+  cacheDir: '',
   localFolders: [],
 });
 
@@ -226,6 +239,8 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (s.closeBehavior !== 'hide' && s.closeBehavior !== 'exit') s.closeBehavior = 'hide';
   if (typeof s.updateProxy !== 'string') s.updateProxy = '';
   if (s.playbackNetwork !== 'direct' && s.playbackNetwork !== 'proxy') s.playbackNetwork = 'direct';
+  s.cacheLimitMB = Math.max(64, Math.min(10240, s.cacheLimitMB ?? 512));
+  if (typeof s.cacheDir !== 'string') s.cacheDir = '';
   s.backgroundBlur = Math.max(0, Math.min(40, s.backgroundBlur || 0));
   s.artworkInfluence = Math.max(10, Math.min(100, s.artworkInfluence ?? 60));
   s.surfaceOpacity = Math.max(0, Math.min(100, s.surfaceOpacity ?? 88));

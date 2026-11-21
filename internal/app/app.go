@@ -493,7 +493,7 @@ func (a *App) serveCacheAudio(w http.ResponseWriter, r *http.Request, name strin
 		http.Error(w, "bad cache name", http.StatusBadRequest)
 		return
 	}
-	path := filepath.Join(a.mediaCacheDir(), name)
+	path := filepath.Join(a.currentCacheDir(), name)
 	f, err := os.Open(path)
 	if err != nil {
 		http.Error(w, "cache file not found", http.StatusNotFound)
@@ -554,7 +554,7 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 
 	// 命中磁盘缓存：本地文件直接供给（ServeContent 原生支持 Range）
 	if cachedName := a.mediaCacheFind(tok.mid); cachedName != "" {
-		cached := filepath.Join(a.mediaCacheDir(), cachedName)
+		cached := filepath.Join(a.currentCacheDir(), cachedName)
 		f, err := os.Open(cached)
 		if err == nil {
 			defer f.Close()
@@ -579,7 +579,7 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 		if newURL != "" {
 			// 重新解析后若已缓存完成，切换到缓存供给
 			if cachedName := a.mediaCacheFind(tok2.mid); cachedName != "" {
-				cached := filepath.Join(a.mediaCacheDir(), cachedName)
+				cached := filepath.Join(a.currentCacheDir(), cachedName)
 				f, err := os.Open(cached)
 				if err == nil {
 					defer f.Close()

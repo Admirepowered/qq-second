@@ -13,6 +13,7 @@ import { ChartsPage, ChartDetailPage } from './pages/ChartsPage';
 import { PlaylistPage, AlbumPage, ArtistPage } from './pages/DetailPages';
 import { AccountPage } from './pages/AccountPage';
 import { LocalMusicPage } from './pages/LocalMusicPage';
+import { CachedSongsPage } from './pages/CachedSongsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useNavStore, AppRoute } from './store/nav';
 import { usePrefsStore } from './store/prefs';
@@ -28,6 +29,7 @@ const TITLES: Record<AppRoute['page'], string> = {
   album: '专辑',
   artist: '歌手',
   account: '我的收藏',
+  cache: '缓存歌曲',
   local: '本地音乐',
   settings: '设置',
 };
@@ -101,6 +103,9 @@ export default function App() {
       break;
     case 'account':
       page = <AccountPage />;
+      break;
+    case 'cache':
+      page = <CachedSongsPage />;
       break;
     case 'local':
       page = <LocalMusicPage />;

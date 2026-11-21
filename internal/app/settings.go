@@ -23,6 +23,8 @@ type Settings struct {
 	CloseBehavior    string   `json:"closeBehavior"`    // hide | exit（点关闭按钮时隐藏到托盘或退出）
 	UpdateProxy      string   `json:"updateProxy"`      // 手动代理地址（空=自动探测），如 http://127.0.0.1:7890
 	PlaybackNetwork  string   `json:"playbackNetwork"`  // direct | proxy（歌曲播放网络）
+	CacheLimitMB     int      `json:"cacheLimitMB"`     // 媒体磁盘缓存上限（MB），默认 512，最大 10240
+	CacheDir         string   `json:"cacheDir"`         // 媒体缓存目录（空=默认 dataDir/cache/media）
 	LocalFolders     []string `json:"localFolders"`
 }
 
@@ -39,6 +41,8 @@ func defaultSettings() Settings {
 		SurfaceOpacity:   88,
 		PreferredQuality: "high",
 		CloseBehavior:    "hide",
+		CacheLimitMB:     512,
+		CacheDir:         "",
 		LocalFolders:     []string{},
 	}
 }
@@ -99,6 +103,8 @@ func clampSettings(s Settings) Settings {
 	if s.PlaybackNetwork != "direct" && s.PlaybackNetwork != "proxy" {
 		s.PlaybackNetwork = "direct"
 	}
+	s.CacheDir = strings.TrimSpace(s.CacheDir)
+	s.CacheLimitMB = clampInt(s.CacheLimitMB, 64, 10240)
 	if s.LocalFolders == nil {
 		s.LocalFolders = []string{}
 	}

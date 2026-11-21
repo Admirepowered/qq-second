@@ -1,6 +1,6 @@
 // 侧栏导航。
 
-import { Disc3, Heart, Home, ListMusic, Search as SearchIcon, Settings, TrendingUp } from 'lucide-react';
+import { Database, Disc3, Heart, Home, ListMusic, Search as SearchIcon, Settings, TrendingUp } from 'lucide-react';
 import { useNavStore } from '../store/nav';
 import { usePlayerStore } from '../store/player';
 import { usePrefsStore } from '../store/prefs';
@@ -44,6 +44,9 @@ export function Sidebar() {
           <Heart size={17} /> 我的收藏
         </button>
       ) : null}
+      <button className={item(route.page === 'cache')} onClick={() => go({ page: 'cache' })}>
+        <Database size={17} /> 缓存歌曲
+      </button>
       <button className={item(route.page === 'local')} onClick={() => go({ page: 'local' })}>
         <ListMusic size={17} /> 本地音乐
       </button>

@@ -11,6 +11,8 @@ export type AppRoute =
   | { page: 'album'; id: string }
   | { page: 'artist'; id: string }
   | { page: 'account' }
+  | { page: 'account' }
+  | { page: 'cache' }
   | { page: 'local' }
   | { page: 'settings' };
 

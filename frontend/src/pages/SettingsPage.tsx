@@ -23,10 +23,12 @@ import {
   GetDataDirPath,
   OpenDataDir,
   OpenLogsDir,
+  ListCachedSongs,
+  ChangeCacheDir,
 } from '../api';
 import { usePrefsStore } from '../store/prefs';
 import { PALETTES } from '../theme';
-import { BackgroundImage, QRCodeImage, QRLoginPoll, Settings as SettingsData, UpdateInfo } from '../types';
+import { BackgroundImage, CachedSong, QRCodeImage, QRLoginPoll, Settings as SettingsData, UpdateInfo } from '../types';
 
 export function SettingsPage() {
   return (
@@ -72,13 +74,14 @@ function SegGroup({
   );
 }
 
-function RangeInput({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
+function RangeInput({ value, min, max, step, onChange }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void }) {
   return (
     <input
       type="range"
       className="settings-range"
       min={min}
       max={max}
+      step={step || 1}
       value={value}
       style={{ '--range-progress': `${((value - min) / (max - min)) * 100}%` } as React.CSSProperties}
       onChange={(e) => onChange(Number(e.target.value))}
@@ -344,7 +347,40 @@ function GeneralSection() {
         }
       />
       <DataDirRow />
+      <CacheSettingsRow />
     </div>
+  );
+}
+
+// 缓存上限 + 缓存目录
+function CacheSettingsRow() {
+  const { settings, update } = usePrefsStore();
+  const limitGB = settings.cacheLimitMB >= 1024
+    ? (settings.cacheLimitMB / 1024).toFixed(settings.cacheLimitMB % 1024 === 0 ? 0 : 1) + ' GB'
+    : settings.cacheLimitMB + ' MB';
+  return (
+    <>
+      <SettingRow
+        label={`缓存上限 ${limitGB}`}
+        desc="超出上限时按最久未播放自动清理（最大 10GB）"
+        control={<RangeInput value={settings.cacheLimitMB} min={64} max={10240} step={64} onChange={(v) => update({ cacheLimitMB: v })} />}
+      />
+      <SettingRow
+        label="缓存目录"
+        desc="更改后已有缓存文件自动迁移到新目录"
+        control={
+          <button
+            className="btn"
+            onClick={async () => {
+              const dir = (await ChangeCacheDir()) as string;
+              if (dir) update({ cacheDir: dir });
+            }}
+          >
+            更改缓存目录
+          </button>
+        }
+      />
+    </>
   );
 }
 

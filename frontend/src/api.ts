@@ -25,6 +25,8 @@ export const {
   QQLogout,
   QQUserAccount,
   GetCredential,
+  ListCachedSongs,
+  ChangeCacheDir,
   AddLocalFolder,
   RemoveLocalFolder,
   RescanLocalLibrary,
