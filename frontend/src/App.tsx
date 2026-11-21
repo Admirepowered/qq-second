@@ -17,7 +17,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { useNavStore, AppRoute } from './store/nav';
 import { usePrefsStore } from './store/prefs';
 import { usePlayerStore } from './store/player';
-import { EventsOn } from './api';
+import { EventsOn, SendLog } from './api';
 
 const TITLES: Record<AppRoute['page'], string> = {
   home: '发现',
@@ -41,6 +41,15 @@ export default function App() {
     initAudio();
     void load();
     void restoreSession();
+    // 前端错误上报到日志文件
+    const onErr = (e: ErrorEvent) => {
+      void SendLog('error', `${e.message} @ ${e.filename}:${e.lineno}`);
+    };
+    const onRej = (e: PromiseRejectionEvent) => {
+      void SendLog('error', 'unhandled rejection: ' + String(e.reason));
+    };
+    window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', onRej);
     // 托盘菜单 → 播放控制
     const offPlayback = EventsOn('tray:playback', (cmd: string) => {
       const p = usePlayerStore.getState();
@@ -61,6 +70,8 @@ export default function App() {
     });
     return () => {
       offPlayback?.();
+      window.removeEventListener('error', onErr);
+      window.removeEventListener('unhandledrejection', onRej);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

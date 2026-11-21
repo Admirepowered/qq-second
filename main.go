@@ -18,6 +18,13 @@ import (
 var assets embed.FS
 
 func main() {
+	// 日志：每次启动删除重建，实时写入（要在最前面，捕获 wails 内部日志）
+	dataDir, dirErr := app.DefaultDataDir()
+	if dirErr != nil {
+		dataDir = ".qq-second-data"
+	}
+	app.InitLogger(dataDir)
+
 	// 内存占用优化：
 	// 1. GC 更积极（播放器分配率低，CPU 代价可忽略）
 	debug.SetGCPercent(50)
@@ -33,24 +40,13 @@ func main() {
 		}
 	}()
 
-	// 单实例：二次启动唤起已有窗口后退出（避免双实例互踩 store.json）
-	dataDir, err := app.DefaultDataDir()
-	if err != nil {
-		dataDir = ".qq-second-data"
-	}
-	release, acquired, err := app.AcquireSingleInstance(dataDir)
-	if err != nil {
-		println("single instance check failed:", err.Error())
-	}
-	if !acquired {
-		_ = app.SignalRunningInstance(dataDir)
-		return
-	}
-	defer release()
+	// 注意：不要在这里做单实例等副作用——wails build/generate 生成绑定时会
+	// 执行 main()（绑定模式不会走 Startup），提前 return 会导致绑定输出为空，
+	// 前端构建失败（历史坑，见 AGENT.md）。单实例检查在 App.Startup 中。
 
 	app := app.NewApp()
 
-	err = wails.Run(&options.App{
+	err := wails.Run(&options.App{
 		Title:     "QQ Second",
 		Width:     1280,
 		Height:    820,

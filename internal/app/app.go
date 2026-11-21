@@ -33,9 +33,10 @@ type App struct {
 	qq      *qqmusic.Client
 	library *LocalLibrary
 
-	playMu     sync.Mutex
-	playIndex  map[string]*playToken // token -> 解析结果
-	updateInfo *UpdateInfo           // 最近一次更新检查结果
+	playMu             sync.Mutex
+	playIndex          map[string]*playToken // token -> 解析结果
+	updateInfo         *UpdateInfo           // 最近一次更新检查结果
+	singleInstRelease  func()                // 单实例锁释放
 }
 
 // playToken 是一次 QQ 播放解析的结果，前端只拿 token，签名 URL 不出后端。
@@ -111,6 +112,18 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.library = NewLocalLibrary(dataDir, filepath.Join(dataDir, "covers"))
 
+	// 单实例：二次启动唤起已有窗口后退出（避免双实例互踩 store.json）。
+	// 必须放在 Startup（绑定生成模式会执行 main() 但不走生命周期钩子）。
+	if release, acquired, err := AcquireSingleInstance(dataDir); err != nil {
+		println("single instance check failed:", err.Error())
+	} else if !acquired {
+		_ = SignalRunningInstance(dataDir)
+		wailsruntime.Quit(a.ctx)
+		return
+	} else {
+		a.singleInstRelease = release
+	}
+
 	// 唤起信号监听（二次启动 → 显示主窗口）
 	a.WatchSignalFile()
 
@@ -137,9 +150,13 @@ func parseNum(s string) int64 {
 // DomReady 在前端 DOM 就绪后触发。
 func (a *App) DomReady(ctx context.Context) {}
 
-// Shutdown 退出前保存状态并移除托盘。
+// Shutdown 退出前保存状态、移除托盘、释放单实例锁。
 func (a *App) Shutdown(ctx context.Context) {
 	a.stopTray()
+	if a.singleInstRelease != nil {
+		a.singleInstRelease()
+		a.singleInstRelease = nil
+	}
 	a.mu.Lock()
 	_ = a.saveStoreLocked()
 	a.mu.Unlock()
@@ -209,6 +226,21 @@ func (a *App) OnBeforeClose(ctx context.Context) bool {
 // GetVersion 返回应用版本号。
 func (a *App) GetVersion() string {
 	return version.Version
+}
+
+// GetDataDirPath 返回数据目录绝对路径。
+func (a *App) GetDataDirPath() string {
+	return a.dataDir
+}
+
+// OpenDataDir 用资源管理器打开数据目录。
+func (a *App) OpenDataDir() {
+	a.OpenPath(a.dataDir)
+}
+
+// OpenLogsDir 用资源管理器打开日志目录。
+func (a *App) OpenLogsDir() {
+	a.OpenPath(LogsDirPath(a.dataDir))
 }
 
 // ---- 会话快照（独立 session.json，见 session.go） ----

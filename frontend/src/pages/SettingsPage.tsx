@@ -20,6 +20,9 @@ import {
   DownloadUpdate,
   ApplyUpdate,
   EventsOn,
+  GetDataDirPath,
+  OpenDataDir,
+  OpenLogsDir,
 } from '../api';
 import { usePrefsStore } from '../store/prefs';
 import { PALETTES } from '../theme';
@@ -340,7 +343,34 @@ function GeneralSection() {
           />
         }
       />
+      <DataDirRow />
     </div>
+  );
+}
+
+// 数据目录 + 日志
+function DataDirRow() {
+  const [dir, setDir] = useState('');
+  useEffect(() => {
+    GetDataDirPath()
+      .then((d) => setDir(String(d)))
+      .catch(() => {});
+  }, []);
+  return (
+    <SettingRow
+      label="数据目录"
+      desc={dir || '配置 / 缓存 / 日志所在位置'}
+      control={
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => OpenDataDir()}>
+            打开数据目录
+          </button>
+          <button className="btn" onClick={() => OpenLogsDir()}>
+            打开日志
+          </button>
+        </div>
+      }
+    />
   );
 }
 
