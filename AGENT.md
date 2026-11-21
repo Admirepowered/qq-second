@@ -93,15 +93,19 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
 - **双实例共写 store.json**：正式版与 dev 同时跑时，旧实例的任何一次保存都会把
   另一实例刚写的设置覆盖回去（透明度"没保存"的根因）。已用单实例锁 + session.json
   分文件修复；dev 构建用独立锁名可与正式版共存。
+- **CI 上 wails build 会执行 main() 生成绑定**：单实例/启动副作用必须 fail-open。
+  历史坑：CI 用户目录不存在 → 锁文件创建失败 → main 提前 return → 绑定没生成 →
+  macOS/Linux 构建失败。修复：`CI=true` 跳过单实例 + 锁目录 MkdirAll + 错误放行。
 - `frontend/wailsjs`、`build/bin`、`frontend/dist` 均在 .gitignore，CI 里由 wails 重新生成。
 
 ## 发布流程
 
-1. 发版前 `internal/version/version.go` 改成目标版本（CI 只读它）。
+1. 发版前**手动**修改 `internal/version/version.go` 版本号并提交推送
+   （CI 只读它，**不做任何自动 bump**——自动 bump 已按维护者要求移除）。
 2. GitHub Actions → **Build & Release** → 勾选 `release`（可选 `prerelease`）→ 运行。
+   **发布必须走 workflow，禁止手动 API 上传 Release/资产**（维护者明确要求）。
 3. 四端产物自动构建：Windows amd64（UPX 强制）、macOS arm64、Ubuntu 22.04
    （webkit2gtk-4.0）、Ubuntu 24.04（webkit2gtk-4.1，`-tags webkit2_41`）。
-4. **发布成功后 CI 自动把小版本号 +1 提交回 main**（`chore: bump version ... [skip ci]`）；
-   中间版本号变化由维护者手动改。
-5. 老版本客户端在 设置→关于 检查更新；Windows 可一键更新（按资产命名约定
-   `QQSecond-windows-amd64-<ver>.exe` 下载替换重启），macOS / Linux 下载包手动安装。
+4. 老版本客户端在 设置→关于 检查更新（语义化版本比较，只有 latest > current 才提示）；
+   Windows 可一键更新（按资产命名约定 `QQSecond-windows-amd64-<ver>.exe`
+   下载替换重启），macOS / Linux 下载包手动安装。

@@ -24,7 +24,11 @@ var (
 // AcquireSingleInstance 尝试获取单实例锁。
 // 返回 (release func, acquired bool)：acquired=false 表示已有实例在运行，
 // 调用方应写唤起信号文件后直接退出。
+// CI 环境（绑定生成会执行 main()）直接跳过。
 func AcquireSingleInstance(dataDir string) (func(), bool, error) {
+	if os.Getenv("CI") != "" {
+		return func() {}, true, nil
+	}
 	name, err := windows.UTF16PtrFromString(mutexName)
 	if err != nil {
 		return nil, false, err
