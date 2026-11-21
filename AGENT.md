@@ -107,6 +107,9 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   GPU 合成负担（已去掉全部 backdrop-filter 与位移动画），不是进程数。
 - **assetServer Middleware**：`/audio/*` 在 main.go 里拦截，不经过 dist 静态文件。
 - **vite HMR** 会重置 zustand store（含 __player/__prefs 调试句柄），dev 下测试前先 reload。
+- **歌词活动行守卫不能用 startMs 真值判断**：首行（元数据行）startMs 常为 0，
+  ```!lines[0].startMs``` 会把整个歌词同步判废。用 syncMode 判断。
+  歌词全屏层需设置 ```--wails-draggable: drag```（交互区覆盖 no-drag），否则无边框窗口拖不动。
 - **Startup 阶段 wailsruntime.Quit 不生效**：事件循环未就绪。二次启动的实例
   在 Startup 检测到已有实例后必须用 os.Exit(0) 直接退出（此时未写任何数据，安全）。
 - **双实例共写 store.json**：正式版与 dev 同时跑时，旧实例的任何一次保存都会把

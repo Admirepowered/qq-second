@@ -37,10 +37,11 @@ export function LyricsPanel() {
     };
   }, [lyricsOpen, current?.id]);
 
-  // 当前活动行（由 rAF 更新状态时使用 positionMs）
+  // 当前活动行
   const lines = doc?.lines ?? [];
   const activeIndex = useMemo(() => {
-    if (lines.length === 0 || !lines[0].startMs) return -1;
+    // 只对有同步时间轴的歌词计算活动行；首行 startMs=0 是合法值，不能用真值守卫
+    if (!doc || doc.syncMode === 'unsynchronized' || lines.length === 0) return -1;
     let idx = -1;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].startMs <= positionMs) idx = i;

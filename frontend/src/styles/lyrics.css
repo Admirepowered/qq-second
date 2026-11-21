@@ -7,6 +7,14 @@
   flex-direction: column;
   background: var(--bg);
   overflow: hidden;
+  /* 歌词全屏页默认可拖动窗口；交互区域单独覆盖为 no-drag */
+  --wails-draggable: drag;
+}
+.lyrics-scroll,
+.lyrics-bottombar,
+.lyrics-topbar button,
+.lyrics-toggle-group {
+  --wails-draggable: no-drag;
 }
 .lyrics-bg {
   position: absolute;
