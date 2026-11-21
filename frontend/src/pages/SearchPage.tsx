@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QQSearch } from '../api';
-import { SearchResult, Track } from '../types';
+import { SearchResult, Track, artworkSmall } from '../types';
 import { usePlayerStore } from '../store/player';
 import { useNavStore } from '../store/nav';
 import { TrackList } from '../components/TrackRow';
@@ -95,7 +95,7 @@ export function SearchPage({ initialQuery }: { initialQuery?: string }) {
             <div className="card-grid">
               {(results.artist?.artists ?? []).map((a) => (
                 <button key={a.id} className="card" onClick={() => navigate({ page: 'artist', id: a.id })}>
-                  {a.cover ? <img className="card-cover" src={a.cover} alt="" loading="lazy" style={{ borderRadius: '50%' }} /> : <div className="card-cover" style={{ borderRadius: '50%' }} />}
+                  {a.cover ? <img className="card-cover" src={artworkSmall(a.cover)} alt="" loading="lazy" style={{ borderRadius: '50%' }} /> : <div className="card-cover" style={{ borderRadius: '50%' }} />}
                   <div className="card-title">{a.name}</div>
                 </button>
               ))}
@@ -107,7 +107,7 @@ export function SearchPage({ initialQuery }: { initialQuery?: string }) {
             <div className="card-grid">
               {(results.album?.albums ?? []).map((a) => (
                 <button key={a.id} className="card" onClick={() => navigate({ page: 'album', id: a.id })}>
-                  {a.cover ? <img className="card-cover" src={a.cover} alt="" loading="lazy" /> : <div className="card-cover" />}
+                  {a.cover ? <img className="card-cover" src={artworkSmall(a.cover)} alt="" loading="lazy" /> : <div className="card-cover" />}
                   <div className="card-title">{a.title}</div>
                   {a.releaseYear ? <div className="card-sub">{a.releaseYear}</div> : null}
                 </button>
@@ -120,7 +120,7 @@ export function SearchPage({ initialQuery }: { initialQuery?: string }) {
             <div className="card-grid">
               {(results.playlist?.playlists ?? []).map((p) => (
                 <button key={p.id} className="card" onClick={() => navigate({ page: 'playlist', id: p.id })}>
-                  {p.cover ? <img className="card-cover" src={p.cover} alt="" loading="lazy" /> : <div className="card-cover" />}
+                  {p.cover ? <img className="card-cover" src={artworkSmall(p.cover)} alt="" loading="lazy" /> : <div className="card-cover" />}
                   <div className="card-title">{p.title}</div>
                   {p.creator ? <div className="card-sub">{p.creator}</div> : null}
                 </button>

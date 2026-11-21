@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { QQHome, QQCharts } from '../api';
-import { HomeFeed, ChartInfo, Track, PlaylistInfo } from '../types';
+import { HomeFeed, ChartInfo, Track, PlaylistInfo, artworkSmall } from '../types';
 import { usePlayerStore } from '../store/player';
 import { useNavStore } from '../store/nav';
 import { TrackList } from '../components/TrackRow';
@@ -93,7 +93,7 @@ export function HomePage() {
             {playlists.map((p) => (
               <button key={p.id} className="card" onClick={() => navigate({ page: 'playlist', id: p.id })}>
                 <div className="card-cover-wrap">
-                  {p.cover ? <img className="card-cover" src={p.cover} alt="" loading="lazy" /> : <div className="card-cover" />}
+                  {p.cover ? <img className="card-cover" src={artworkSmall(p.cover)} alt="" loading="lazy" /> : <div className="card-cover" />}
                   <div className="card-play-overlay">▶</div>
                 </div>
                 <div className="card-title">{p.title}</div>

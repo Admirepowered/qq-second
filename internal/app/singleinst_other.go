@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-const signalFile = "show-dev-signal-unused"
 
 // AcquireSingleInstance 非 Windows：锁文件方式。
 // 任何错误一律放行（fail-open）：CI 上绑定生成会执行 main()，用户目录可能不存在；

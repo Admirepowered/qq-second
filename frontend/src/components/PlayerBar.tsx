@@ -108,6 +108,7 @@ export function PlayerBar() {
         {current ? (
           <>
             <TrackCover track={current} />
+
             <div className="pb-meta" onClick={() => player.setLyricsOpen(true)}>
               <div className="pb-title" title={current.title}>
                 {current.title}

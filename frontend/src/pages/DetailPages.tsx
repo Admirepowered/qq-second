@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { QQPlaylist, QQAlbum, QQArtist } from '../api';
-import { PlaylistDetail, AlbumDetail, ArtistDetail } from '../types';
+import { PlaylistDetail, AlbumDetail, ArtistDetail, artworkSmall } from '../types';
 import { usePlayerStore } from '../store/player';
 import { useNavStore } from '../store/nav';
 import { TrackList } from '../components/TrackRow';
@@ -88,7 +88,7 @@ export function AlbumPage({ id }: { id: string }) {
     <div>
       <div className="page-header">
         {detail.cover ? (
-          <img className="page-header-cover" src={detail.cover} alt="" />
+          <img className="page-header-cover" src={artworkSmall(detail.cover)} alt="" />
         ) : (
           <div className="page-header-cover-ph">💿</div>
         )}
@@ -146,7 +146,7 @@ export function ArtistPage({ id }: { id: string }) {
     <div>
       <div className="page-header">
         {detail.cover ? (
-          <img className="page-header-cover" src={detail.cover} alt="" style={{ borderRadius: '50%' }} />
+          <img className="page-header-cover" src={artworkSmall(detail.cover)} alt="" style={{ borderRadius: '50%' }} />
         ) : (
           <div className="page-header-cover-ph" style={{ borderRadius: '50%' }}>🎤</div>
         )}
@@ -177,7 +177,7 @@ export function ArtistPage({ id }: { id: string }) {
           <div className="card-grid">
             {detail.albums.map((a) => (
               <button key={a.id} className="card" onClick={() => navigate({ page: 'album', id: a.id })}>
-                {a.cover ? <img className="card-cover" src={a.cover} alt="" loading="lazy" /> : <div className="card-cover" />}
+                {a.cover ? <img className="card-cover" src={artworkSmall(a.cover)} alt="" loading="lazy" /> : <div className="card-cover" />}
                 <div className="card-title">{a.title}</div>
                 {a.releaseYear ? <div className="card-sub">{a.releaseYear}</div> : null}
               </button>

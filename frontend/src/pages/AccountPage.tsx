@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { QQUserAccount } from '../api';
-import { UserAccount } from '../types';
+import { UserAccount, artworkSmall } from '../types';
 import { usePlayerStore } from '../store/player';
 import { useNavStore } from '../store/nav';
 import { TrackList } from '../components/TrackRow';
@@ -101,7 +101,7 @@ function PlaylistCard({ id, title, cover, sub }: { id: string; title: string; co
   return (
     <button className="card" onClick={() => navigate({ page: 'playlist', id })}>
       <div className="card-cover-wrap">
-        {cover ? <img className="card-cover" src={cover} alt="" loading="lazy" /> : <div className="card-cover" />}
+        {cover ? <img className="card-cover" src={artworkSmall(cover)} alt="" loading="lazy" /> : <div className="card-cover" />}
         <div className="card-play-overlay">▶</div>
       </div>
       <div className="card-title">{title}</div>

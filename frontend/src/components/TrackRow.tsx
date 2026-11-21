@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Heart, ListPlus, Play } from 'lucide-react';
-import { Track, fmtDuration, artistText } from '../types';
+import { Track, fmtDuration, artistText, artworkSmall } from '../types';
 import { usePlayerStore, localCover } from '../store/player';
 
 export function TrackCover({ track }: { track: Track }) {
-  const [src, setSrc] = useState<string | undefined>(track.kind === 'qq' ? track.artwork : undefined);
+  const [src, setSrc] = useState<string | undefined>(track.kind === 'qq' ? artworkSmall(track.artwork) : undefined);
   useEffect(() => {
     let cancelled = false;
     if (track.kind === 'local') {
@@ -14,7 +14,7 @@ export function TrackCover({ track }: { track: Track }) {
         if (!cancelled) setSrc(v);
       });
     } else {
-      setSrc(track.artwork);
+      setSrc(artworkSmall(track.artwork));
     }
     return () => {
       cancelled = true;

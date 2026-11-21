@@ -243,6 +243,12 @@ export function fmtDuration(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// artworkSmall 列表场景用小尺寸封面（150px），降低解码纹理内存占用
+export function artworkSmall(url?: string): string | undefined {
+  if (!url) return url;
+  return url.replace('300x300', '150x150').replace('500x500', '150x150');
+}
+
 export function artistText(t: Track): string {
   return (t.artists || []).map((a) => a.name).join(' / ') || '未知歌手';
 }

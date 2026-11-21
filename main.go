@@ -23,8 +23,8 @@ func main() {
 	debug.SetGCPercent(50)
 	// 2. 软内存上限：逼近时 GC 自动加压
 	debug.SetMemoryLimit(256 << 20)
-	// 3. WebView2 磁盘缓存限制，避免无限膨胀
-	_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disk-cache-size=33554432 --disable-features=msWebUILaunchFile")
+	// 3. WebView2 磁盘缓存限制，避免无限膨胀；低内存设备模式压缩 GPU/瓦片缓存
+	_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disk-cache-size=33554432 --enable-low-end-device-mode --js-flags=--max-old-space-size=192 --disable-features=msWebUILaunchFile")
 	// 4. 定期把闲置堆内存还给操作系统（降低 RSS）
 	go func() {
 		for {
