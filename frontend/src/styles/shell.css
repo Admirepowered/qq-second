@@ -1,0 +1,318 @@
+/* 应用外壳：背景层 + 侧栏 + 内容 + 播放条 */
+.app-shell {
+  position: relative;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr var(--player-height);
+  overflow: hidden;
+}
+
+/* ---- 背景层 ---- */
+.backgroundLayer,
+.backgroundOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.backgroundLayer {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transform: scale(1.05);
+  transition: opacity 0.2s ease;
+}
+.backgroundOverlay {
+  background: rgba(0, 0, 0, 0.12);
+}
+.shell-content {
+  position: relative;
+  z-index: 1;
+  display: contents;
+}
+
+/* ---- 侧栏 ---- */
+.sidebar {
+  grid-column: 1;
+  grid-row: 1 / 2;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(24px);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 10px 12px;
+  gap: 4px;
+  overflow-y: auto;
+  --wails-draggable: drag;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 14px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.brand .brand-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+}
+
+.nav-section-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 10px 10px 4px;
+  --wails-draggable: no-drag;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  transition: background 0.15s, color 0.15s;
+  --wails-draggable: no-drag;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.nav-item svg {
+  flex: none;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+/* ---- 内容区 ---- */
+.content-shell {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.topbar {
+  height: 54px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 18px;
+  background: rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  --wails-draggable: drag;
+}
+.topbar button,
+.topbar input {
+  --wails-draggable: no-drag;
+}
+.topbar-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.topbar-spacer {
+  flex: 1;
+}
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+.icon-btn.active {
+  color: var(--accent);
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 24px 32px;
+  --wails-draggable: no-drag;
+}
+
+/* ---- 播放条 ---- */
+.player-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(28px);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(200px, 0.9fr) minmax(320px, 1.2fr) minmax(200px, 0.9fr);
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 30;
+}
+
+.pb-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.pb-cover {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+  flex: none;
+  cursor: pointer;
+}
+.pb-cover-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  flex: none;
+  cursor: pointer;
+}
+.pb-meta {
+  min-width: 0;
+}
+.pb-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.pb-artist {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pb-quality-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.pb-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.pb-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.play-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  transition: transform 0.12s;
+}
+.play-btn:hover {
+  transform: scale(1.06);
+}
+
+.pb-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 560px;
+}
+.pb-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  width: 38px;
+  text-align: center;
+}
+
+.pb-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.volume-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 滑条 */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--range-progress, 0%),
+    rgba(255, 255, 255, 0.16) var(--range-progress, 0%)
+  );
+  outline: none;
+  cursor: pointer;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+input[type='range']:hover::-webkit-slider-thumb {
+  opacity: 1;
+}
+.progress-slider {
+  flex: 1;
+}
+.volume-slider {
+  width: 88px;
+}

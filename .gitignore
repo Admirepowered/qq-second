@@ -1,0 +1,22 @@
+# 构建产物
+build/bin/
+dist/
+frontend/dist/
+frontend/node_modules/
+frontend/wailsjs/
+
+# 本地调试
+tmp/
+*.log
+wailsdev.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 图标预览产物
+build/icon/
+
+# 本地调试文件
+.zcode/
+frontend/package.json.md5
