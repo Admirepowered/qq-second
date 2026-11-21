@@ -76,14 +76,23 @@ func (c *Client) ResolvePlay(songMid, mediaMid, albumMid, preferredQuality strin
 	if len(items) == 0 {
 		return nil, fmt.Errorf("no midurlinfo")
 	}
-	entry, _ := items[0].(map[string]interface{})
-	if entry == nil {
-		return nil, fmt.Errorf("bad midurlinfo")
-	}
-	if purl := stringAt(entry, "purl"); purl != "" {
+	// midurlinfo 与 filename 候选一一对应：遍历找第一个可用的音质
+	// （高音质无权限 104003 时自动落到低音质，而不是整体失败）
+	for _, it := range items {
+		entry, _ := it.(map[string]interface{})
+		if entry == nil {
+			continue
+		}
+		if result, ok := numberAt(entry, "result"); ok && result != 0 {
+			continue // 该音质无权限（104003 等），看下一个
+		}
+		purl := stringAt(entry, "purl")
+		if strings.TrimSpace(purl) == "" {
+			continue
+		}
 		full := normalizeCDN(purl)
 		if full == "" {
-			return nil, fmt.Errorf("playback URL host not allowed")
+			continue
 		}
 		filename := stringAt(entry, "filename")
 		for _, k := range candidates {
@@ -93,9 +102,12 @@ func (c *Client) ResolvePlay(songMid, mediaMid, albumMid, preferredQuality strin
 		}
 		return &ResolvedSource{URL: full, Quality: "standard", Format: "mp3"}, nil
 	}
-	// purl 为空：可能需要登录或无权限
-	if code, ok := numberAt(entry, "result"); ok {
-		return nil, fmt.Errorf("resolve failed result %d", code)
+	// 所有候选都不可用：取第一个 entry 的 result 作为错误码
+	entry, _ := items[0].(map[string]interface{})
+	if entry != nil {
+		if code, ok := numberAt(entry, "result"); ok {
+			return nil, fmt.Errorf("resolve failed result %d", code)
+		}
 	}
 	return nil, fmt.Errorf("no playable url (may require login)")
 }
