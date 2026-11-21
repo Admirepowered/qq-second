@@ -43,11 +43,10 @@ func defaultSettings() Settings {
 	}
 }
 
-// Store 是 store.json 的整体内容。
+// Store 是 store.json 的整体内容（不含播放会话——会话在 session.json，见 session.go）。
 type Store struct {
-	Settings  Settings    `json:"settings"`
-	Credential Credential  `json:"credential"`
-	Session    SessionData `json:"session"`
+	Settings   Settings   `json:"settings"`
+	Credential Credential `json:"credential"`
 }
 
 // QQ 扫码登录凭据。只保存在本机配置文件里。
@@ -127,9 +126,6 @@ func (a *App) initStore() error {
 		}
 	}
 	store.Settings = clampSettings(store.Settings)
-	if store.Session.Queue == nil {
-		store.Session.Queue = []Track{}
-	}
 	if store.Settings.LocalFolders == nil {
 		store.Settings.LocalFolders = []string{}
 	}
@@ -172,4 +168,9 @@ func appDataDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(base, "qq-second"), nil
+}
+
+// DefaultDataDir 供 main.go 在启动早期获取数据目录。
+func DefaultDataDir() (string, error) {
+	return appDataDir()
 }

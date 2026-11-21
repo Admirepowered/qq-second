@@ -111,6 +111,9 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.library = NewLocalLibrary(dataDir, filepath.Join(dataDir, "covers"))
 
+	// 唤起信号监听（二次启动 → 显示主窗口）
+	a.WatchSignalFile()
+
 	// 托盘（Windows 立即可见）
 	a.startTray()
 
@@ -208,28 +211,21 @@ func (a *App) GetVersion() string {
 	return version.Version
 }
 
-// ---- 会话快照 ----
+// ---- 会话快照（独立 session.json，见 session.go） ----
 
 // SaveSession 由前端定期保存播放器状态。
 func (a *App) SaveSession(session SessionData) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if session.Queue == nil {
-		session.Queue = []Track{}
-	}
-	a.store.Session = session
-	return a.saveStoreLocked()
+	a.saveSessionFile(session)
+	return nil
 }
 
 // GetSession 返回上次退出时的播放器状态。
 func (a *App) GetSession() SessionData {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := a.store.Session
-	if s.Queue == nil {
-		s.Queue = []Track{}
-	}
-	return s
+	return a.loadSessionFile()
 }
 
 // ---- 凭据 ----

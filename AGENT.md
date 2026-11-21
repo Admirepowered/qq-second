@@ -1,7 +1,8 @@
 # AGENT.md — 开发者 / AI 助手工作指南
 
 本文件面向在本仓库工作的 AI 助手与新加入的开发者，描述项目约定、关键实现位置与
-验证流程。改动前请先阅读，避免破坏已验证的链路。
+验证流程。**本文件必须随功能与坑点变化同步更新**（新增约定/踩坑/架构变化时，在对应
+小节补条目并随同一次 commit 提交）。改动前请先阅读，避免破坏已验证的链路。
 
 ## 项目概要
 
@@ -26,6 +27,9 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
 | `internal/app/localmusic.go` | 本地曲库扫描、标签、时长、封面缓存 |
 | `internal/app/background.go` | 背景图导入/列表/删除/dataURL（源自 Pulse 移植） |
 | `internal/app/settings.go` | Settings 全量结构 + clamp + store.json 持久化 |
+| `internal/app/session.go` | 播放会话快照（独立 session.json，与设置分开写） |
+| `internal/app/singleinst_*.go` | 单实例锁（命名互斥量 + 唤起信号文件；dev 构建用独立名字） |
+| `internal/app/updater.go` | Windows 一键更新（下载资产 → 替换 → 重启） |
 | `internal/app/tray.go` | 托盘菜单（内部 `internal/tray` 为零依赖 Win32 实现） |
 | `internal/app/update.go` | 更新检查：通道 = 手动代理（仅手动）→ 域名固定 IP SNI → 直连 |
 | `internal/app/updater.go` | Windows 一键更新（下载 → 替换 → 重启） |
@@ -46,17 +50,24 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
 4. **设置 clamp 在 Go 端 `clampSettings`**：前端 `normalizeSettings` 是镜像。新增设置字段
    两边都要加（Go struct + 前端 types.ts + normalizeSettings + defaultSettings）。
 5. **SettingsPage 的 section 必须是模块级组件**：定义在组件体内会因 React 重挂载丢失
-   输入框焦点（历史 bug，勿回退）。
-6. **毛玻璃范围**：backdrop-filter 仅 sidebar / player-bar 两处（GPU 负载原因）；
-   其他面板用 `--card-glass` 半透明底。动画只允许 opacity/color 过渡。
+   输入框焦点（历史 bug：代理地址输入框无法聚焦，勿回退）。
+6. **不允许 backdrop-filter（毛玻璃）**：用户已明确去掉全部模糊效果，背景图要原样清晰
+   显示。面板只允许半透明底色（alpha 由滑杆驱动）+ 文字 text-shadow 保证可读。
 7. **面板底色 alpha**：由 `theme.ts applyThemeTokens` 按 `surfaceOpacity` 写入 CSS 变量
-   （背景全窗可见的实现核心），不要在 CSS 里写死面板背景色。
+   （背景全窗可见的实现核心，系数<1），不要在 CSS 里写死面板背景色；所有组件统一受滑杆影响。
 8. **新增 App 绑定方法**后必须 `wails generate module`，并在 `frontend/src/api.ts`
    的解构导出清单里补名字（易漏，历史 bug：GetVersion/OpenReleasePage）。
 9. **Git Bash 下不要用命令行内联中文 JSON**（GBK 编码会打坏请求体）——写 UTF-8 文件
    用 `--data-binary @file`。
 10. **中文查询返回空 ≠ 接口坏**：先确认是不是新设备频控（cgi 2001）。客户端已带
     退避重试 + 换设备；连续失败时等待几分钟再测，勿盲目改代码。
+11. **会话与设置分文件写**：播放会话在 `session.json`、设置/凭据在 `store.json`。
+    历史坑：两者曾共写 store.json，播放中每 2 秒的会话快照会把并发修改的设置
+    （如面板透明度）整体覆盖回旧值——表现为"透明度没保存"。新持久化数据一律
+    单独建文件，不要塞进 store.json。
+12. **单实例**：`AcquireSingleInstance`（互斥量）+ `show.signal` 唤起文件；二次启动
+    唤起已有窗口后退出。dev 构建用独立互斥量/信号名（`-tags dev`），可与正式版共存。
+13. **本文件随更新同步维护**：功能变化、新坑、新约定都要回写到对应小节。
 
 ## 验证清单（改动后逐项走查）
 
@@ -76,17 +87,21 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
 
 - **频控**：QQ 对新设备/IP 有间歇性 2001 限流（重试内建）。测试勿高频重建 client。
 - **WebView2** 辅助进程多个是正常的（browser/GPU/renderer/network），能省的是
-  backdrop-filter 数量与动画，不是进程数。
+  GPU 合成负担（已去掉全部 backdrop-filter 与位移动画），不是进程数。
 - **assetServer Middleware**：`/audio/*` 在 main.go 里拦截，不经过 dist 静态文件。
 - **vite HMR** 会重置 zustand store（含 __player/__prefs 调试句柄），dev 下测试前先 reload。
+- **双实例共写 store.json**：正式版与 dev 同时跑时，旧实例的任何一次保存都会把
+  另一实例刚写的设置覆盖回去（透明度"没保存"的根因）。已用单实例锁 + session.json
+  分文件修复；dev 构建用独立锁名可与正式版共存。
 - `frontend/wailsjs`、`build/bin`、`frontend/dist` 均在 .gitignore，CI 里由 wails 重新生成。
 
 ## 发布流程
 
 1. 发版前 `internal/version/version.go` 改成目标版本（CI 只读它）。
 2. GitHub Actions → **Build & Release** → 勾选 `release`（可选 `prerelease`）→ 运行。
-3. Windows（UPX 强制）+ macOS arm64 双平台产物自动上传 Release。
+3. 四端产物自动构建：Windows amd64（UPX 强制）、macOS arm64、Ubuntu 22.04
+   （webkit2gtk-4.0）、Ubuntu 24.04（webkit2gtk-4.1，`-tags webkit2_41`）。
 4. **发布成功后 CI 自动把小版本号 +1 提交回 main**（`chore: bump version ... [skip ci]`）；
    中间版本号变化由维护者手动改。
 5. 老版本客户端在 设置→关于 检查更新；Windows 可一键更新（按资产命名约定
-   `QQSecond-windows-amd64-<ver>.exe` 下载替换重启），macOS 下载 zip 手动安装。
+   `QQSecond-windows-amd64-<ver>.exe` 下载替换重启），macOS / Linux 下载包手动安装。

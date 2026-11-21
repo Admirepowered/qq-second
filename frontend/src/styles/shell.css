@@ -20,26 +20,19 @@
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  transform: scale(1.05);
   transition: opacity 0.25s ease;
-}
-.backgroundOverlay {
-  transition: background 0.25s ease;
 }
 .app-shell:not(.has-bg) .backgroundLayer,
 .app-shell:not(.has-bg) .backgroundOverlay {
   display: none;
 }
 
-/* ---- 侧栏（毛玻璃） ---- */
+/* ---- 侧栏 ---- */
 .sidebar {
   grid-column: 1;
   grid-row: 1 / 2;
   background: var(--panel-current);
-  backdrop-filter: var(--panel-blur-current);
-  -webkit-backdrop-filter: var(--panel-blur-current);
   border-right: 1px solid var(--panel-border);
-  box-shadow: inset -1px 0 0 var(--panel-highlight);
   display: flex;
   flex-direction: column;
   padding: 14px 10px 12px;
@@ -168,15 +161,12 @@
   --wails-draggable: no-drag;
 }
 
-/* ---- 播放条（毛玻璃） ---- */
+/* ---- 播放条 ---- */
 .player-bar {
   grid-column: 1 / -1;
   grid-row: 2;
   background: var(--panel-current-strong);
-  backdrop-filter: var(--panel-blur-current);
-  -webkit-backdrop-filter: var(--panel-blur-current);
   border-top: 1px solid var(--panel-border);
-  box-shadow: inset 0 1px 0 var(--panel-highlight), 0 -8px 30px rgba(0, 0, 0, 0.18);
   display: grid;
   grid-template-columns: minmax(200px, 0.9fr) minmax(320px, 1.2fr) minmax(200px, 0.9fr);
   align-items: center;

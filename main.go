@@ -33,9 +33,24 @@ func main() {
 		}
 	}()
 
+	// 单实例：二次启动唤起已有窗口后退出（避免双实例互踩 store.json）
+	dataDir, err := app.DefaultDataDir()
+	if err != nil {
+		dataDir = ".qq-second-data"
+	}
+	release, acquired, err := app.AcquireSingleInstance(dataDir)
+	if err != nil {
+		println("single instance check failed:", err.Error())
+	}
+	if !acquired {
+		_ = app.SignalRunningInstance(dataDir)
+		return
+	}
+	defer release()
+
 	app := app.NewApp()
 
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:     "QQ Second",
 		Width:     1280,
 		Height:    820,
