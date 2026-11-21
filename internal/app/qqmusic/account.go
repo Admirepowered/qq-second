@@ -20,7 +20,7 @@ func (c *Client) GetUserAccount() (*UserAccount, error) {
 	if cred.StrMusicID == "" || cred.MusicKey == "" {
 		return nil, ErrNotLoggedIn
 	}
-	account := &UserAccount{Uin: cred.StrMusicID, Nickname: cred.Nickname}
+	account := &UserAccount{Uin: cred.StrMusicID, Nickname: cred.Nickname, FavSongs: []Track{}, MyPlaylists: []PlaylistInfo{}}
 
 	// 1) 用户资料（昵称/头像兜底）
 	if data, err := c.cgiAndroid("userInfo.BaseUserInfoServer", "get_user_baseinfo_v2", map[string]interface{}{

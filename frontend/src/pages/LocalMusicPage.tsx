@@ -55,6 +55,7 @@ export function LocalMusicPage() {
   };
 
   const tracks = lib?.tracks ?? [];
+  const folders = lib?.folders ?? [];
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return tracks;
@@ -74,7 +75,7 @@ export function LocalMusicPage() {
         <div className="page-header-info">
           <div className="page-header-title">本地音乐</div>
           <div className="page-header-sub">
-            {lib.folders.length > 0 ? `已监控 ${lib.folders.length} 个文件夹 · ${tracks.length} 首` : '添加一个音乐文件夹开始使用'}
+            {folders.length > 0 ? `已监控 ${folders.length} 个文件夹 · ${tracks.length} 首` : '添加一个音乐文件夹开始使用'}
           </div>
         </div>
       </div>
@@ -99,9 +100,9 @@ export function LocalMusicPage() {
         <span className="local-count">{filtered.length} 首</span>
       </div>
 
-      {lib.folders.length > 0 ? (
+      {folders.length > 0 ? (
         <div className="folder-list" style={{ marginBottom: 16 }}>
-          {lib.folders.map((f) => (
+          {folders.map((f) => (
             <div key={f} className="folder-row">
               <span className="folder-path">{f}</span>
               <button className="icon-btn folder-remove" onClick={() => void removeFolder(f)} title="移除文件夹">

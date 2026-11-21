@@ -35,7 +35,7 @@ func (c *Client) Search(kind string, query string, page int) (*SearchResult, err
 		return nil, err
 	}
 	body, _ := dig(data, "body")
-	result := &SearchResult{More: true}
+	result := &SearchResult{More: true, Songs: []Track{}, Artists: []ArtistBrief{}, Albums: []AlbumBrief{}, Playlists: []PlaylistInfo{}}
 	if body == nil {
 		return result, nil
 	}
@@ -112,7 +112,7 @@ type HomeFeed struct {
 
 // Home 获取首页数据（匿名 web，游客可用）。
 func (c *Client) Home() (*HomeFeed, error) {
-	feed := &HomeFeed{}
+	feed := &HomeFeed{Playlists: []PlaylistInfo{}, NewSongs: []Track{}}
 
 	// 推荐歌单
 	data, err := c.cgiAnonymousWeb("music.playlist.PlaylistSquare", "GetRecommendFeed", map[string]interface{}{
@@ -186,7 +186,7 @@ func (c *Client) ChartDetail(topID int) (*PlaylistDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	detail := &PlaylistDetail{HasMore: false}
+	detail := &PlaylistDetail{HasMore: false, Tracks: []Track{}}
 	if info, ok := dig(data, "topinfo"); ok {
 		detail.Info = PlaylistInfo{
 			ID:     "top:" + strconv.Itoa(topID),
@@ -220,7 +220,7 @@ func (c *Client) PlaylistDetail(disstid string, begin int) (*PlaylistDetail, err
 	if err != nil {
 		return nil, err
 	}
-	detail := &PlaylistDetail{}
+	detail := &PlaylistDetail{Tracks: []Track{}}
 	if dirinfo, ok := dig(data, "dirinfo"); ok {
 		creator := ""
 		if cr, ok := dig(dirinfo, "creator"); ok {
@@ -259,7 +259,7 @@ func (c *Client) AlbumDetail(albumMid string) (*AlbumDetail, error) {
 			return nil, err
 		}
 	}
-	detail := &AlbumDetail{ID: albumMid, Cover: artworkURL(albumMid, 500)}
+	detail := &AlbumDetail{ID: albumMid, Cover: artworkURL(albumMid, 500), Tracks: []Track{}, Artists: []NameRef{}}
 	if info, ok := dig(data, "getAlbumInfo", "albumInfo"); ok {
 		detail.Title = stringAt(info, "albumName")
 		detail.Company = stringAt(info, "company")
@@ -300,7 +300,7 @@ func (c *Client) AlbumSongList(albumMid string) ([]Track, error) {
 
 // ArtistDetail 获取歌手详情 + 热门歌曲 + 专辑。
 func (c *Client) ArtistDetail(singerMid string) (*ArtistDetail, error) {
-	detail := &ArtistDetail{ID: singerMid, Cover: singerArtworkURL(singerMid)}
+	detail := &ArtistDetail{ID: singerMid, Cover: singerArtworkURL(singerMid), Songs: []Track{}, Albums: []AlbumBrief{}}
 
 	// 歌手信息（含描述）
 	data, err := c.cgiAnonymousWeb("music.musichallSinger.SingerInfoInter", "GetSingerDetail", map[string]interface{}{

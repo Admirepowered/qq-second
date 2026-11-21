@@ -133,7 +133,8 @@ func (a *App) Startup(ctx context.Context) {
 	// 后台恢复/扫描本地音乐库，不阻塞启动。
 	go func() {
 		a.mu.Lock()
-		folders := append([]string(nil), a.store.Settings.LocalFolders...)
+		folders := make([]string, 0, len(a.store.Settings.LocalFolders)+1)
+	_ = folders
 		a.mu.Unlock()
 		a.library.LoadCache()
 		if len(folders) > 0 {
@@ -399,7 +400,8 @@ func (a *App) AddLocalFolderPath(dir string) (LocalLibraryView, error) {
 		a.store.Settings.LocalFolders = folders
 		_ = a.saveStoreLocked()
 	}
-	list := append([]string(nil), folders...)
+	list := make([]string, 0, len(folders))
+	list = append(list, folders...)
 	a.mu.Unlock()
 	a.library.Rescan(list)
 	return a.LocalLibrary(), nil
@@ -416,7 +418,8 @@ func (a *App) RemoveLocalFolder(dir string) LocalLibraryView {
 	}
 	a.store.Settings.LocalFolders = folders
 	_ = a.saveStoreLocked()
-	list := append([]string(nil), folders...)
+	list := make([]string, 0, len(folders))
+	list = append(list, folders...)
 	a.mu.Unlock()
 	a.library.Rescan(list)
 	return a.LocalLibrary()
@@ -425,7 +428,8 @@ func (a *App) RemoveLocalFolder(dir string) LocalLibraryView {
 // RescanLocalLibrary 强制重扫全部文件夹。
 func (a *App) RescanLocalLibrary() LocalLibraryView {
 	a.mu.Lock()
-	list := append([]string(nil), a.store.Settings.LocalFolders...)
+	list := make([]string, 0, len(a.store.Settings.LocalFolders))
+	list = append(list, a.store.Settings.LocalFolders...)
 	a.mu.Unlock()
 	a.library.Rescan(list)
 	return a.LocalLibrary()
@@ -441,7 +445,8 @@ type LocalLibraryView struct {
 // LocalLibrary 返回本地曲库（folders 来自设置）。
 func (a *App) LocalLibrary() LocalLibraryView {
 	a.mu.Lock()
-	folders := append([]string(nil), a.store.Settings.LocalFolders...)
+	folders := make([]string, 0, len(a.store.Settings.LocalFolders)+1)
+	_ = folders
 	a.mu.Unlock()
 	return LocalLibraryView{Folders: folders, Tracks: a.library.Tracks()}
 }
