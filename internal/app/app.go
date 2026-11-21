@@ -112,14 +112,14 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.library = NewLocalLibrary(dataDir, filepath.Join(dataDir, "covers"))
 
-	// 单实例：二次启动唤起已有窗口后退出（避免双实例互踩 store.json）。
+	// 单实例：二次启动写唤起信号后立即退出（os.Exit——Startup 阶段 wailsruntime.Quit
+	// 不生效，事件循环未就绪；此时尚未写任何数据，直接退出安全）。
 	// 必须放在 Startup（绑定生成模式会执行 main() 但不走生命周期钩子）。
 	if release, acquired, err := AcquireSingleInstance(dataDir); err != nil {
 		println("single instance check failed:", err.Error())
 	} else if !acquired {
 		_ = SignalRunningInstance(dataDir)
-		wailsruntime.Quit(a.ctx)
-		return
+		os.Exit(0)
 	} else {
 		a.singleInstRelease = release
 	}
