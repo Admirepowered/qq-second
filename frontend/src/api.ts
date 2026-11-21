@@ -24,6 +24,8 @@ export const {
   QQPollLogin,
   QQLogout,
   QQUserAccount,
+  QQListFavoriteMids,
+  QQSetFavorite,
   GetCredential,
   ListCachedSongs,
   ChangeCacheDir,

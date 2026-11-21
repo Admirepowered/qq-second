@@ -9,6 +9,7 @@ export interface Track {
   kind: 'qq' | 'local';
   id: string;
   mid?: string;
+  songId?: string;
   mediaMid?: string;
   albumMid?: string;
   title: string;

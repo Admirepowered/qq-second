@@ -17,6 +17,7 @@ import { CachedSongsPage } from './pages/CachedSongsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useNavStore, AppRoute } from './store/nav';
 import { usePrefsStore } from './store/prefs';
+import { useFavStore } from './store/fav';
 import { usePlayerStore } from './store/player';
 import { EventsOn, SendLog } from './api';
 
@@ -36,7 +37,7 @@ const TITLES: Record<AppRoute['page'], string> = {
 
 export default function App() {
   const route = useNavStore((s) => s.route);
-  const { load, loaded, settings } = usePrefsStore();
+  const { load, loaded, settings, credential } = usePrefsStore();
   const { initAudio, restoreSession } = usePlayerStore();
 
   useEffect(() => {
@@ -77,6 +78,15 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 登录态变化 → 同步"我喜欢"集合
+  useEffect(() => {
+    if (credential?.uin) {
+      void useFavStore.getState().load();
+    } else {
+      useFavStore.setState({ mids: [], loaded: false });
+    }
+  }, [credential?.uin]);
 
   let page: React.ReactNode = null;
   switch (route.page) {

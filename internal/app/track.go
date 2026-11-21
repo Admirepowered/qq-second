@@ -5,6 +5,7 @@ type Track struct {
 	Kind      string    `json:"kind"` // "qq" | "local"
 	Id        string    `json:"id"`   // qq: songMid；local: 路径哈希
 	Mid       string    `json:"mid,omitempty"`
+	SongId    string    `json:"songId,omitempty"`
 	MediaMid  string    `json:"mediaMid,omitempty"`
 	AlbumMid  string    `json:"albumMid,omitempty"`
 	Title     string    `json:"title"`

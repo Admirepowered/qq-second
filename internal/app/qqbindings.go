@@ -108,3 +108,55 @@ func (a *App) QQUserAccount() (*qqmusic.UserAccount, error) {
 	a.ensureQQ()
 	return a.qq.GetUserAccount()
 }
+
+// QQListFavoriteMids 返回"我喜欢"歌单里全部歌曲的 mid 集合（需登录）。
+func (a *App) QQListFavoriteMids() ([]string, error) {
+	a.ensureQQ()
+	// 拉账号歌单，找 dirId=201（我喜欢）的 tid
+	account, err := a.qq.GetUserAccount()
+	if err != nil {
+		return nil, err
+	}
+	var favTid string
+	for _, pl := range account.MyPlaylists {
+		if pl.DirID == 201 {
+			favTid = pl.ID
+			break
+		}
+	}
+	if favTid == "" {
+		return []string{}, nil
+	}
+	mids := []string{}
+	for begin := 0; ; begin += 100 {
+		detail, err := a.qq.PlaylistDetail(favTid, begin)
+		if err != nil || len(detail.Tracks) == 0 {
+			break
+		}
+		for _, t := range detail.Tracks {
+			mids = append(mids, t.Mid)
+		}
+		if !detail.HasMore || len(detail.Tracks) < 100 {
+			break
+		}
+	}
+	return mids, nil
+}
+
+// QQSetFavorite 收藏/取消收藏歌曲（需登录）。
+func (a *App) QQSetFavorite(track Track, fav bool) error {
+	a.ensureQQ()
+	songId := track.SongId
+	if songId == "" {
+		// 通过 mid 解析数字 songId
+		sid, err := a.qq.ResolveSongId(track.Mid)
+		if err != nil {
+			return err
+		}
+		songId = sid
+	}
+	if fav {
+		return a.qq.AddFavorite(songId)
+	}
+	return a.qq.DelFavorite(songId)
+}

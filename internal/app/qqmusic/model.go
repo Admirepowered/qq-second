@@ -12,6 +12,7 @@ type Track struct {
 	Kind       string    `json:"kind"` // "qq"
 	Id         string    `json:"id"`
 	Mid        string    `json:"mid,omitempty"`
+	SongId     string    `json:"songId,omitempty"` // 数字歌曲 ID（收藏接口需要）
 	MediaMid   string    `json:"mediaMid,omitempty"`
 	AlbumMid   string    `json:"albumMid,omitempty"`
 	Title      string    `json:"title"`
@@ -71,6 +72,10 @@ func normalizeSong(raw map[string]interface{}) (Track, bool) {
 	title = stripEm(title)
 
 	track := Track{Kind: "qq", Id: mid, Mid: mid, Title: title, Capability: "full"}
+	// 数字歌曲 ID（收藏/举报等写接口需要）
+	if n, ok := numberAt(raw, "id"); ok && n > 0 {
+		track.SongId = strconv.FormatInt(n, 10)
+	}
 
 	// 歌手
 	for _, s := range arrayAt(raw, "singer") {
