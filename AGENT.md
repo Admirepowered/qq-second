@@ -107,6 +107,8 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   GPU 合成负担（已去掉全部 backdrop-filter 与位移动画），不是进程数。
 - **assetServer Middleware**：`/audio/*` 在 main.go 里拦截，不经过 dist 静态文件。
 - **vite HMR** 会重置 zustand store（含 __player/__prefs 调试句柄），dev 下测试前先 reload。
+- **Startup 阶段 wailsruntime.Quit 不生效**：事件循环未就绪。二次启动的实例
+  在 Startup 检测到已有实例后必须用 os.Exit(0) 直接退出（此时未写任何数据，安全）。
 - **双实例共写 store.json**：正式版与 dev 同时跑时，旧实例的任何一次保存都会把
   另一实例刚写的设置覆盖回去（透明度"没保存"的根因）。已用单实例锁 + session.json
   分文件修复；dev 构建用独立锁名可与正式版共存。
