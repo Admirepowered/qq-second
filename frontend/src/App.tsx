@@ -14,6 +14,7 @@ import { PlaylistPage, AlbumPage, ArtistPage } from './pages/DetailPages';
 import { AccountPage } from './pages/AccountPage';
 import { LocalMusicPage } from './pages/LocalMusicPage';
 import { CachedSongsPage } from './pages/CachedSongsPage';
+import { ContextMenuHost } from './components/ContextMenu';
 import { SettingsPage } from './pages/SettingsPage';
 import { useNavStore, AppRoute } from './store/nav';
 import { usePrefsStore } from './store/prefs';
@@ -143,6 +144,7 @@ export default function App() {
       </div>
       <QueuePanel />
       <LyricsPanel />
+      <ContextMenuHost />
     </>
   );
 }

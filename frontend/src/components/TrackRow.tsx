@@ -1,12 +1,13 @@
-// 曲目行组件：本地封面按需加载 + QQ"我喜欢"收藏切换。
+// 曲目行组件：本地封面按需加载 + 右键菜单（收藏/加入队列）+ QQ"我喜欢"状态。
 
-import { useEffect, useState } from 'react';
+import { MouseEvent as ReactMouseEvent, useEffect, useState } from 'react';
 import { Heart, ListPlus, Play } from 'lucide-react';
 import { Track, fmtDuration, artistText, artworkSmall } from '../types';
 import { usePlayerStore, localCover } from '../store/player';
 import { useFavStore } from '../store/fav';
 import { usePrefsStore } from '../store/prefs';
 import { useNavStore } from '../store/nav';
+import { useContextMenu } from './ContextMenu';
 
 export function TrackCover({ track }: { track: Track }) {
   const [src, setSrc] = useState<string | undefined>(track.kind === 'qq' ? artworkSmall(track.artwork) : undefined);
@@ -32,38 +33,6 @@ export function TrackCover({ track }: { track: Track }) {
   );
 }
 
-// 心形收藏按钮：收藏到 QQ"我喜欢"（需登录；未登录跳转设置页）
-export function FavButton({ track }: { track: Track }) {
-  const favMids = useFavStore((s) => s.mids);
-  const toggle = useFavStore((s) => s.toggle);
-  const credential = usePrefsStore((s) => s.credential);
-  const navigate = useNavStore((s) => s.navigate);
-  const favorited = track.mid ? favMids.includes(track.mid) : false;
-
-  return (
-    <button
-      className="icon-btn"
-      title={favorited ? '取消收藏' : '收藏到我喜欢'}
-      style={favorited ? { color: 'var(--accent)' } : undefined}
-      onClick={async (e) => {
-        e.stopPropagation();
-        if (!credential?.uin) {
-          navigate({ page: 'settings' });
-          return;
-        }
-        if (!track.mid) return;
-        try {
-          await toggle(track.mid, track.songId);
-        } catch {
-          /* 失败静默回滚 */
-        }
-      }}
-    >
-      <Heart size={15} fill={favorited ? 'var(--accent)' : 'none'} />
-    </button>
-  );
-}
-
 export function TrackRow({
   track,
   index,
@@ -75,24 +44,57 @@ export function TrackRow({
 }) {
   const current = usePlayerStore((s) => s.current);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
+  const favMids = useFavStore((s) => s.mids);
+  const toggleFav = useFavStore((s) => s.toggle);
+  const credential = usePrefsStore((s) => s.credential);
+  const navigate = useNavStore((s) => s.navigate);
+  const openMenu = useContextMenu((s) => s.open);
   const isCurrent = current?.id === track.id && current?.kind === track.kind;
+  const favorited = track.mid ? favMids.includes(track.mid) : false;
+
+  const onContextMenu = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    openMenu(e.clientX, e.clientY, [
+      { label: '播放', onClick: () => onPlay(track, index) },
+      { label: '加入队列', onClick: () => addToQueue([track]) },
+      { separator: true },
+      credential?.uin
+        ? {
+            label: favorited ? '取消收藏' : '收藏到我喜欢',
+            onClick: async () => {
+              if (!track.mid) return;
+              try {
+                await toggleFav(track.mid, track.songId);
+              } catch {
+                /* 失败静默回滚 */
+              }
+            },
+          }
+        : { label: '收藏（需登录）', onClick: () => navigate({ page: 'settings' }) },
+      { separator: true },
+      { label: `歌曲 ID：${track.mid}`, disabled: true },
+    ]);
+  };
 
   return (
     <div
       className={`track-row${isCurrent ? ' current' : ''}`}
       onClick={() => onPlay(track, index)}
       onDoubleClick={() => onPlay(track, index)}
+      onContextMenu={onContextMenu}
     >
       <span className="track-index">{isCurrent ? <Play size={13} /> : index + 1}</span>
       <TrackCover track={track} />
       <div style={{ minWidth: 0 }}>
-        <div className="track-title">{track.title}</div>
+        <div className="track-title">
+          {track.title}
+          {favorited ? <Heart size={11} fill="var(--accent)" color="var(--accent)" style={{ marginLeft: 5, verticalAlign: -1 }} /> : null}
+        </div>
         <div className="track-artist">{artistText(track)}</div>
       </div>
       <span className="track-album">{track.album || (track.kind === 'local' ? '本地音乐' : '')}</span>
       <span className="track-duration">{fmtDuration(track.durationMs)}</span>
       <div className="track-actions">
-        {track.kind === 'qq' ? <FavButton track={track} /> : null}
         <button
           className="icon-btn"
           title="加入队列"

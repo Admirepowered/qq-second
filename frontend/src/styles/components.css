@@ -380,3 +380,39 @@
   margin: 14px auto;
   display: block;
 }
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 180px;
+  background: var(--panel-glass-strong);
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 5px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4);
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.context-menu-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+:root[data-theme='light'] .context-menu-item:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+.context-menu-item.danger {
+  color: #ff7b72;
+}
+.context-menu-sep {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 4px 6px;
+}

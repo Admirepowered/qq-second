@@ -146,17 +146,8 @@ func (a *App) QQListFavoriteMids() ([]string, error) {
 // QQSetFavorite 收藏/取消收藏歌曲（需登录）。
 func (a *App) QQSetFavorite(track Track, fav bool) error {
 	a.ensureQQ()
-	songId := track.SongId
-	if songId == "" {
-		// 通过 mid 解析数字 songId
-		sid, err := a.qq.ResolveSongId(track.Mid)
-		if err != nil {
-			return err
-		}
-		songId = sid
-	}
 	if fav {
-		return a.qq.AddFavorite(songId)
+		return a.qq.AddFavorite(track.Mid)
 	}
-	return a.qq.DelFavorite(songId)
+	return a.qq.DelFavorite(track.Mid)
 }
