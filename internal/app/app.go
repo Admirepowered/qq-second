@@ -291,8 +291,18 @@ func (a *App) saveCredentialLocked(c Credential) {
 // ---- 播放解析（token 表） ----
 
 // QQResolvePlay 解析一首 QQ 曲目的播放源，返回 token 及音质信息。
-// 签名 URL 保留在后端；前端通过 /audio/stream?id=<token> 播放。
+// 已缓存曲目直接返回本地缓存路径（跳过 vkey 网络解析）；
+// 未缓存时签名 URL 保留在后端，前端通过 /audio/stream?id=<token> 播放。
 func (a *App) QQResolvePlay(track Track, preferredQuality string) (PlaybackSource, error) {
+	// 磁盘缓存命中：直接听本地缓存，无需任何网络请求
+	if name := a.mediaCacheFind(track.Mid); name != "" {
+		return PlaybackSource{
+			Quality:    qualityFromCacheName(name),
+			Format:     strings.TrimPrefix(filepath.Ext(name), "."),
+			StreamPath: "/audio/cache/" + name,
+		}, nil
+	}
+
 	if a.qq == nil {
 		return PlaybackSource{}, errors.New("app not ready")
 	}
@@ -468,10 +478,46 @@ func (a *App) ServeAudio(w http.ResponseWriter, r *http.Request) bool {
 		a.serveLocalAudio(w, r, strings.TrimPrefix(r.URL.Path, "/audio/local/"))
 	case strings.HasPrefix(r.URL.Path, "/audio/stream"):
 		a.serveStreamAudio(w, r)
+	case strings.HasPrefix(r.URL.Path, "/audio/cache/"):
+		a.serveCacheAudio(w, r, strings.TrimPrefix(r.URL.Path, "/audio/cache/"))
 	default:
 		http.NotFound(w, r)
 	}
 	return true
+}
+
+// serveCacheAudio 供给磁盘缓存中的音频文件（严格校验文件名防目录穿越）。
+func (a *App) serveCacheAudio(w http.ResponseWriter, r *http.Request, name string) {
+	name = filepath.Base(name)
+	if strings.Contains(name, "..") || !isValidCacheName(name) {
+		http.Error(w, "bad cache name", http.StatusBadRequest)
+		return
+	}
+	path := filepath.Join(a.mediaCacheDir(), name)
+	f, err := os.Open(path)
+	if err != nil {
+		http.Error(w, "cache file not found", http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", contentTypeByExt(strings.ToLower(filepath.Ext(path))))
+	w.Header().Set("Accept-Ranges", "bytes")
+	http.ServeContent(w, r, name, time.Now(), f)
+}
+
+// isValidCacheName 校验缓存文件名（mid-quality.ext）。
+func isValidCacheName(name string) bool {
+	if len(name) == 0 || len(name) > 200 {
+		return false
+	}
+	for _, c := range name {
+		ok := c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
+			c == '.' || c == '-' || c == '_'
+		if !ok {
+			return false
+		}
+	}
+	return strings.Contains(name, ".")
 }
 
 // serveLocalAudio 按曲目 id 提供本地文件（支持 Range seek）。
@@ -507,19 +553,20 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 命中磁盘缓存：本地文件直接供给（ServeContent 原生支持 Range）
-	if cached := a.mediaCachePath(tok.mid, tok.format); cached != "" {
+	if cachedName := a.mediaCacheFind(tok.mid); cachedName != "" {
+		cached := filepath.Join(a.mediaCacheDir(), cachedName)
 		f, err := os.Open(cached)
 		if err == nil {
 			defer f.Close()
-			w.Header().Set("Content-Type", contentTypeByExt(tok.format))
+			w.Header().Set("Content-Type", contentTypeByExt(filepath.Ext(cached)))
 			w.Header().Set("Accept-Ranges", "bytes")
 			http.ServeContent(w, r, filepath.Base(cached), time.Now(), f)
 			return
 		}
 	}
 
-	// 未缓存：代理流 + 后台落盘
-	a.startMediaDownload(tok.mid, tok.format, tok.url)
+	// 未缓存：代理流 + 后台落盘（文件名带音质标记）
+	a.startMediaDownload(tok.mid, tok.quality, tok.format, tok.url)
 	status, refreshable := a.proxyStreamWith(a.streamClient(), w, r, tok.url)
 	if refreshable && refreshStreamToken(token) {
 		a.playMu.Lock()
@@ -531,11 +578,12 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 		a.playMu.Unlock()
 		if newURL != "" {
 			// 重新解析后若已缓存完成，切换到缓存供给
-			if cached := a.mediaCachePath(tok2.mid, tok2.format); cached != "" {
+			if cachedName := a.mediaCacheFind(tok2.mid); cachedName != "" {
+				cached := filepath.Join(a.mediaCacheDir(), cachedName)
 				f, err := os.Open(cached)
 				if err == nil {
 					defer f.Close()
-					w.Header().Set("Content-Type", contentTypeByExt(tok2.format))
+					w.Header().Set("Content-Type", contentTypeByExt(filepath.Ext(cached)))
 					w.Header().Set("Accept-Ranges", "bytes")
 					http.ServeContent(w, r, filepath.Base(cached), time.Now(), f)
 					return

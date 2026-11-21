@@ -42,23 +42,59 @@ func (a *App) mediaCachePath(mid, format string) string {
 	return ""
 }
 
+// mediaCacheFind 返回该 mid 的任一缓存文件名（旧命名 mid.ext 或新命名 mid-质量.ext）。
+func (a *App) mediaCacheFind(mid string) string {
+	if mid == "" {
+		return ""
+	}
+	entries, err := os.ReadDir(a.mediaCacheDir())
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, mid+"-") || strings.HasPrefix(name, mid+".") {
+			if st, err := e.Info(); err == nil && st.Size() > 0 {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
+// qualityFromCacheName 从缓存文件名推断音质标记。
+func qualityFromCacheName(name string) string {
+	switch {
+	case strings.Contains(name, "-lossless"), strings.HasSuffix(name, ".flac"):
+		return "lossless"
+	case strings.Contains(name, "-high"):
+		return "high"
+	case strings.Contains(name, "-standard"), strings.HasSuffix(name, ".m4a"):
+		return "standard"
+	}
+	return ""
+}
+
 // startMediaDownload 后台全量下载到缓存（去重：同曲目进行中不重复下载）。
-func (a *App) startMediaDownload(mid, format, url string) {
-	key := mid + "|" + format
+func (a *App) startMediaDownload(mid, quality, format, url string) {
+	key := mid + "|" + quality + "|" + format
 	if _, loading := mediaDownloading.Load(key); loading {
 		return
 	}
 	mediaDownloading.Store(key, struct{}{})
 	go func() {
 		defer mediaDownloading.Delete(key)
-		if err := a.downloadMediaFile(mid, format, url); err != nil {
+		if err := a.downloadMediaFile(mid, quality, format, url); err != nil {
 			println("media cache download failed:", err.Error())
 		}
 	}()
 }
 
 // downloadMediaFile 全量下载音频到缓存目录（.part → 原子改名）。
-func (a *App) downloadMediaFile(mid, format, url string) error {
+func (a *App) downloadMediaFile(mid, quality, format, url string) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -81,7 +117,10 @@ func (a *App) downloadMediaFile(mid, format, url string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	final := filepath.Join(dir, mid+"."+format)
+	if quality == "" {
+		quality = "standard"
+	}
+	final := filepath.Join(dir, mid+"-"+quality+"."+format)
 	part := final + ".part"
 	out, err := os.Create(part)
 	if err != nil {

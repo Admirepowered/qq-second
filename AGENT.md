@@ -74,6 +74,12 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
     folders=null → 本地音乐页崩溃）。新增接口/字段时逐个确认。
 15. **测试禁止动用户真实数据**：调 QQLogout 等会清凭据/覆盖设置的操作只能在
     测试账号上做；在用户主环境验证时禁止清空其登录态。
+16. **版本号迭代规则**：`major.minor.patch`。patch 由 AI 每次对话开始时 +1；
+    minor 由维护者升级（升级后 patch 归 1，因为是修补 commit 计数）；major 同理。
+    CI 不做任何 bump。
+17. **媒体磁盘缓存**：已缓存曲目在 `QQResolvePlay` 直接返回 `/audio/cache/<文件>`
+    跳过 vkey 解析；缓存文件名 `mid-<quality>.<ext>`；供给走严格文件名校验的
+    `serveCacheAudio`。
 
 ## 验证清单（改动后逐项走查）
 
