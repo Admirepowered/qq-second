@@ -25,6 +25,7 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
 | `internal/app/qqmusic/device.go` | 随机设备指纹、QIMEI 申请（RSA+AES）、多级回退 |
 | `internal/app/qqmusic/zzcsign.go` / `tripledes.go` | 签名与解密算法（均有已知向量测试 `sign_test.go`） |
 | `internal/app/localmusic.go` | 本地曲库扫描、标签、时长、封面缓存 |
+| `internal/app/mediacache.go` | QQ 音频磁盘缓存（边播边落盘，512MB LRU；命中后本地 Range 供给） |
 | `internal/app/background.go` | 背景图导入/列表/删除/dataURL（源自 Pulse 移植） |
 | `internal/app/settings.go` | Settings 全量结构 + clamp + store.json 持久化 |
 | `internal/app/session.go` | 播放会话快照（独立 session.json，与设置分开写） |

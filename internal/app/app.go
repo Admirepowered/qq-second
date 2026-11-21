@@ -457,8 +457,8 @@ func (a *App) serveLocalAudio(w http.ResponseWriter, r *http.Request, trackID st
 	http.ServeContent(w, r, name, time.Now(), f)
 }
 
-// serveStreamAudio 代理 QQ 签名 URL（带必需的 Referer/Origin + Range 透传）。
-// 网络模式由设置决定：direct 直连上游；proxy 走手动设置的代理地址。
+// serveStreamAudio 供给 QQ 音频：优先磁盘缓存（原生 Range seek），
+// 未缓存时边播边落盘 + 代理流。网络模式由设置决定：direct 直连；proxy 走手动代理。
 func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.URL.Query().Get("id"))
 	a.playMu.Lock()
@@ -468,6 +468,21 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "stream not found or expired", http.StatusNotFound)
 		return
 	}
+
+	// 命中磁盘缓存：本地文件直接供给（ServeContent 原生支持 Range）
+	if cached := a.mediaCachePath(tok.mid, tok.format); cached != "" {
+		f, err := os.Open(cached)
+		if err == nil {
+			defer f.Close()
+			w.Header().Set("Content-Type", contentTypeByExt(tok.format))
+			w.Header().Set("Accept-Ranges", "bytes")
+			http.ServeContent(w, r, filepath.Base(cached), time.Now(), f)
+			return
+		}
+	}
+
+	// 未缓存：代理流 + 后台落盘
+	a.startMediaDownload(tok.mid, tok.format, tok.url)
 	status, refreshable := a.proxyStreamWith(a.streamClient(), w, r, tok.url)
 	if refreshable && refreshStreamToken(token) {
 		a.playMu.Lock()
@@ -478,6 +493,17 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 		}
 		a.playMu.Unlock()
 		if newURL != "" {
+			// 重新解析后若已缓存完成，切换到缓存供给
+			if cached := a.mediaCachePath(tok2.mid, tok2.format); cached != "" {
+				f, err := os.Open(cached)
+				if err == nil {
+					defer f.Close()
+					w.Header().Set("Content-Type", contentTypeByExt(tok2.format))
+					w.Header().Set("Accept-Ranges", "bytes")
+					http.ServeContent(w, r, filepath.Base(cached), time.Now(), f)
+					return
+				}
+			}
 			a.proxyStreamWith(a.streamClient(), w, r, newURL)
 			return
 		}
