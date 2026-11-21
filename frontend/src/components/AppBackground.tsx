@@ -53,8 +53,8 @@ export function AppBackground() {
             aria-hidden="true"
             style={{
               background: dark
-                ? 'linear-gradient(180deg, rgba(12,14,16,0.62), rgba(12,14,16,0.5))'
-                : 'linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.45))',
+                ? 'linear-gradient(180deg, rgba(12,14,16,0.4), rgba(12,14,16,0.28))'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0.4))',
             }}
           />
         </>

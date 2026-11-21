@@ -67,15 +67,6 @@ export function AccountPage() {
         </div>
       </div>
 
-      {account.favSongs.length > 0 ? (
-        <section className="section">
-          <div className="section-header">
-            <span className="section-title">收藏的歌曲（我喜欢的音乐）</span>
-          </div>
-          <TrackList tracks={account.favSongs} onPlayIndex={(i) => playTracks(account.favSongs, i)} />
-        </section>
-      ) : null}
-
       {account.myPlaylists.length > 0 ? (
         <section className="section">
           <div className="section-header">
@@ -86,6 +77,15 @@ export function AccountPage() {
               <PlaylistCard key={p.id} id={p.id} title={p.title} cover={p.cover} sub={`${p.songCount ?? 0} 首`} />
             ))}
           </div>
+        </section>
+      ) : null}
+
+      {account.favSongs.length > 0 ? (
+        <section className="section">
+          <div className="section-header">
+            <span className="section-title">收藏的歌曲（我喜欢的音乐）</span>
+          </div>
+          <TrackList tracks={account.favSongs} onPlayIndex={(i) => playTracks(account.favSongs, i)} />
         </section>
       ) : null}
 

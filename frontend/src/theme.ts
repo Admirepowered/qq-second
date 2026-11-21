@@ -65,14 +65,14 @@ export function applyThemeTokens(opts: {
 
   const baseAlpha = surfaceOpacity / 100;
 
-  // 毛玻璃面板底色：alpha 直接由"面板不透明度"滑杆驱动，
-  // 使背景在整个窗口可见（面板越透，背景越明显）。
+  // 毛玻璃面板底色：alpha 由"面板不透明度"滑杆驱动。
+  // 系数 <1 让侧栏/播放栏更透，配合背景遮罩保证文字可读；所有组件统一受滑杆影响。
   const panelGlass = dark
-    ? `rgba(18, 20, 24, ${baseAlpha})`
-    : `rgba(255, 255, 255, ${baseAlpha})`;
+    ? `rgba(18, 20, 24, ${baseAlpha * 0.7})`
+    : `rgba(255, 255, 255, ${baseAlpha * 0.75})`;
   const panelStrong = dark
-    ? `rgba(18, 20, 24, ${Math.min(1, baseAlpha + 0.1)})`
-    : `rgba(255, 255, 255, ${Math.min(1, baseAlpha + 0.1)})`;
+    ? `rgba(18, 20, 24, ${baseAlpha * 0.85})`
+    : `rgba(255, 255, 255, ${baseAlpha * 0.9})`;
   const cardGlass = dark
     ? `rgba(24, 27, 31, ${baseAlpha * 0.6})`
     : `rgba(255, 255, 255, ${baseAlpha * 0.9})`;
