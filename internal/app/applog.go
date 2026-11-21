@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 var (
@@ -90,7 +89,10 @@ func (a *App) OpenPath(dir string) {
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		_ = os.MkdirAll(dir, 0o755)
 	}
-	// wails runtime 按平台内部分派：Windows ShellExecute / macOS open / Linux xdg-open，
-	// 对目录路径原生支持（直接弹资源管理器/Finder）
-	wailsruntime.BrowserOpenURL(a.ctx, dir)
+	// 分平台打开（Windows explorer / macOS open / Linux xdg-open）。
+	// 不能用 SysProcAttr HideWindow（会隐藏弹出的文件夹窗口），
+	// 也不能用 BrowserOpenURL（对本地目录行为不确定）。
+	if err := openPathOS(dir); err != nil {
+		logsWrite("open path failed: " + err.Error())
+	}
 }
