@@ -70,6 +70,33 @@ export function SettingsPage() {
             />
           }
         />
+        <SettingRow
+          label="代理地址"
+          desc="用于更新检查与播放代理，如 http://127.0.0.1:7890；留空则不使用代理"
+          control={
+            <input
+              className="local-filter"
+              style={{ maxWidth: 240 }}
+              placeholder="http://127.0.0.1:7890"
+              value={settings.updateProxy}
+              onChange={(e) => update({ updateProxy: e.target.value })}
+            />
+          }
+        />
+        <SettingRow
+          label="歌曲播放网络"
+          desc="跟随代理时使用上面填写的代理地址下载歌曲流"
+          control={
+            <SegGroup
+              value={settings.playbackNetwork}
+              options={[
+                { value: 'direct', label: '直连' },
+                { value: 'proxy', label: '跟随代理' },
+              ]}
+              onChange={(v) => update({ playbackNetwork: v as never })}
+            />
+          }
+        />
       </div>
     );
   }

@@ -126,8 +126,6 @@
   gap: 10px;
   padding: 0 14px 0 18px;
   background: var(--panel-current);
-  backdrop-filter: var(--panel-blur-current);
-  -webkit-backdrop-filter: var(--panel-blur-current);
   border-bottom: 1px solid var(--panel-border);
   --wails-draggable: drag;
 }
@@ -265,10 +263,9 @@
   display: grid;
   place-items: center;
   box-shadow: 0 3px 14px rgba(49, 194, 124, 0.4);
-  transition: transform 0.12s;
 }
 .play-btn:hover {
-  transform: scale(1.07);
+  filter: brightness(1.08);
 }
 
 .pb-progress-row {

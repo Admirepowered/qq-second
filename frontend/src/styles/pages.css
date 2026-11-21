@@ -5,8 +5,6 @@
 }
 .settings-section {
   background: var(--card-glass);
-  backdrop-filter: var(--card-blur);
-  -webkit-backdrop-filter: var(--card-blur);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
@@ -78,10 +76,6 @@
   border: 2px solid transparent;
   cursor: pointer;
   position: relative;
-  transition: transform 0.12s;
-}
-.palette-swatch:hover {
-  transform: scale(1.12);
 }
 .palette-swatch.active {
   border-color: #fff;
@@ -129,10 +123,7 @@ input[type='color']::-webkit-color-swatch {
   border: 2px solid transparent;
   cursor: pointer;
   position: relative;
-  transition: transform 0.12s, border-color 0.12s;
-}
-.bg-thumb:hover {
-  transform: scale(1.04);
+  transition: border-color 0.12s;
 }
 .bg-thumb.active {
   border-color: var(--accent);

@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -47,6 +49,13 @@ type playToken struct {
 	triedQ    string
 	createdAt time.Time
 }
+
+// 代理流客户端（按代理地址缓存，设置变更后自动重建）。
+var (
+	proxyStreamClient  *http.Client
+	proxyStreamFor     string
+	proxyStreamClientMu sync.Mutex
+)
 
 // NewApp 创建 App 实例（wails.Run 之前调用）。
 func NewApp() *App {
@@ -452,6 +461,7 @@ func (a *App) serveLocalAudio(w http.ResponseWriter, r *http.Request, trackID st
 }
 
 // serveStreamAudio 代理 QQ 签名 URL（带必需的 Referer/Origin + Range 透传）。
+// 网络模式由设置决定：direct 直连上游；proxy 走手动设置的代理地址。
 func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.URL.Query().Get("id"))
 	a.playMu.Lock()
@@ -461,7 +471,7 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "stream not found or expired", http.StatusNotFound)
 		return
 	}
-	status, refreshable := a.proxyStream(w, r, tok.url)
+	status, refreshable := a.proxyStreamWith(a.streamClient(), w, r, tok.url)
 	if refreshable && refreshStreamToken(token) {
 		a.playMu.Lock()
 		tok2 := a.playIndex[token]
@@ -471,16 +481,50 @@ func (a *App) serveStreamAudio(w http.ResponseWriter, r *http.Request) {
 		}
 		a.playMu.Unlock()
 		if newURL != "" {
-			a.proxyStream(w, r, newURL)
+			a.proxyStreamWith(a.streamClient(), w, r, newURL)
 			return
 		}
 	}
 	_ = status
 }
 
-// proxyStream 转发上游响应；返回 (status, 是否为可刷新的过期响应)。
+// streamClient 按播放网络设置返回流下载 client。
+func (a *App) streamClient() *http.Client {
+	a.mu.Lock()
+	mode := a.store.Settings.PlaybackNetwork
+	proxyStr := strings.TrimSpace(a.store.Settings.UpdateProxy)
+	a.mu.Unlock()
+	if mode == "proxy" && proxyStr != "" {
+		return proxyStreamClientFor(proxyStr)
+	}
+	return streamHTTPClient
+}
+
+// proxyStreamClientFor 构造（并按代理地址缓存）走代理的流下载 client。
+func proxyStreamClientFor(proxyStr string) *http.Client {
+	proxyStreamClientMu.Lock()
+	defer proxyStreamClientMu.Unlock()
+	if proxyStreamClient == nil || proxyStreamFor != proxyStr {
+		u, err := url.Parse(proxyStr)
+		if err != nil {
+			return streamHTTPClient
+		}
+		proxyStreamClient = &http.Client{
+			Timeout: 0, // 流式下载不设整体超时
+			Transport: &http.Transport{
+				Proxy:           http.ProxyURL(u),
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // 本地代理常做 MITM
+				ForceAttemptHTTP2: true,
+			},
+		}
+		proxyStreamFor = proxyStr
+	}
+	return proxyStreamClient
+}
+
+// proxyStreamWith 用指定 client 转发上游响应；返回 (status, 是否为可刷新的过期响应)。
 // 注意：调用 refreshable 后不得再写响应（此时响应头尚未提交）。
-func (a *App) proxyStream(w http.ResponseWriter, r *http.Request, url string) (int, bool) {
+func (a *App) proxyStreamWith(client *http.Client, w http.ResponseWriter, r *http.Request, url string) (int, bool) {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, url, nil)
 	if err != nil {
 		http.Error(w, "bad upstream", http.StatusBadGateway)
@@ -495,7 +539,7 @@ func (a *App) proxyStream(w http.ResponseWriter, r *http.Request, url string) (i
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 	req.Header.Set("Accept-Encoding", "identity")
 
-	resp, err := streamHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, "upstream failed", http.StatusBadGateway)
 		return 0, false

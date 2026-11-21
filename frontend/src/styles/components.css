@@ -31,12 +31,10 @@
 }
 .card {
   background: var(--card-glass);
-  backdrop-filter: var(--card-blur);
-  -webkit-backdrop-filter: var(--card-blur);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   padding: 10px;
-  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition: background 0.12s;
   cursor: pointer;
   text-align: left;
   width: 100%;
@@ -44,11 +42,6 @@
 }
 .card:hover {
   background: var(--card-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-}
-:root[data-theme='light'] .card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 .card-cover {
   width: 100%;
@@ -69,16 +62,14 @@
   height: 36px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
   color: #fff;
   opacity: 0;
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity 0.15s;
 }
 .card:hover .card-play-overlay {
   opacity: 1;
-  transform: scale(1.05);
 }
 .card-title {
   margin-top: 8px;
@@ -239,13 +230,10 @@
   font-weight: 600;
   background: rgba(128, 134, 142, 0.18);
   color: var(--text-primary);
-  transition: background 0.15s, transform 0.12s;
+  transition: background 0.15s;
 }
 .btn:hover {
   background: rgba(128, 134, 142, 0.28);
-}
-.btn:active {
-  transform: scale(0.97);
 }
 .btn.primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-dim));
@@ -271,22 +259,9 @@
   width: 380px;
   z-index: 41;
   background: var(--panel-glass-strong);
-  backdrop-filter: var(--panel-blur);
-  -webkit-backdrop-filter: var(--panel-blur);
   border-left: 1px solid var(--panel-border);
   display: flex;
   flex-direction: column;
-  animation: drawer-in 0.18s ease;
-}
-@keyframes drawer-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
 }
 .drawer-header {
   display: flex;

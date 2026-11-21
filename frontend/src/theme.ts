@@ -65,6 +65,18 @@ export function applyThemeTokens(opts: {
 
   const baseAlpha = surfaceOpacity / 100;
 
+  // 毛玻璃面板底色：alpha 直接由"面板不透明度"滑杆驱动，
+  // 使背景在整个窗口可见（面板越透，背景越明显）。
+  const panelGlass = dark
+    ? `rgba(18, 20, 24, ${baseAlpha})`
+    : `rgba(255, 255, 255, ${baseAlpha})`;
+  const panelStrong = dark
+    ? `rgba(18, 20, 24, ${Math.min(1, baseAlpha + 0.1)})`
+    : `rgba(255, 255, 255, ${Math.min(1, baseAlpha + 0.1)})`;
+  const cardGlass = dark
+    ? `rgba(24, 27, 31, ${baseAlpha * 0.6})`
+    : `rgba(255, 255, 255, ${baseAlpha * 0.9})`;
+
   const vars: Record<string, string> = {
     '--bg': bg,
     '--bg-opaque': bgOpaque,
@@ -78,6 +90,9 @@ export function applyThemeTokens(opts: {
     '--text-primary': textPrimary,
     '--text-secondary': textSecondary,
     '--border': border,
+    '--panel-glass': panelGlass,
+    '--panel-glass-strong': panelStrong,
+    '--card-glass': cardGlass,
     '--surface-base-alpha': String(baseAlpha),
     '--surface-alpha': String(baseAlpha),
     '--surface-soft-alpha': String(Math.max(0.15, baseAlpha - 0.04)),

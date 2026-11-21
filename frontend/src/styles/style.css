@@ -23,17 +23,16 @@
   --player-height: 92px;
   --sidebar-width: 212px;
 
-  /* 毛玻璃面板材质（无背景时的“实体”形态） */
+  /* 毛玻璃面板材质（实际 alpha 由 applyThemeTokens 按"面板不透明度"滑杆写入） */
   --panel-solid: #1b1e23;
   --panel-solid-strong: #20242a;
-  --panel-glass: rgba(18, 20, 24, 0.55);
-  --panel-glass-strong: rgba(18, 20, 24, 0.68);
-  --card-glass: rgba(24, 27, 31, 0.42);
-  --card-hover: rgba(255, 255, 255, 0.12);
+  --panel-glass: rgba(18, 20, 24, 0.45);
+  --panel-glass-strong: rgba(18, 20, 24, 0.55);
+  --card-glass: rgba(24, 27, 31, 0.28);
+  --card-hover: rgba(255, 255, 255, 0.1);
   --panel-border: rgba(255, 255, 255, 0.07);
   --panel-highlight: rgba(255, 255, 255, 0.06);
-  --panel-blur: blur(28px) saturate(150%);
-  --card-blur: blur(20px) saturate(140%);
+  --panel-blur: blur(26px);
 }
 
 /* 浅色主题 */
@@ -43,10 +42,10 @@
   --border: rgba(0, 0, 0, 0.08);
   --panel-solid: #f6f8fa;
   --panel-solid-strong: #ffffff;
-  --panel-glass: rgba(255, 255, 255, 0.6);
-  --panel-glass-strong: rgba(255, 255, 255, 0.72);
+  --panel-glass: rgba(255, 255, 255, 0.55);
+  --panel-glass-strong: rgba(255, 255, 255, 0.68);
   --card-glass: rgba(255, 255, 255, 0.55);
-  --card-hover: rgba(255, 255, 255, 0.8);
+  --card-hover: rgba(255, 255, 255, 0.85);
   --panel-border: rgba(0, 0, 0, 0.06);
   --panel-highlight: rgba(255, 255, 255, 0.7);
 }

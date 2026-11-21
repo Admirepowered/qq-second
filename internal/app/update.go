@@ -2,11 +2,7 @@ package app
 
 // Release 版本检查：GitHub latest release 对比本地版本。
 //
-// 国内网络下 api.github.com 可能被 DNS 污染，按以下顺序尝试：
-//  1. 域名固定 IP 直连（SNI 正确、证书正常校验，参考 config 包的实现）
-//  2. 本地代理 127.0.0.1:7890（clash/mihomo 混合端口）
-//  3. 系统直连（默认 DNS + 默认路由）
-//
+// 通道顺序：手动代理（设置里填写才启用）→ 域名固定 IP 直连（SNI 正确、证书正常校验）→ 系统直连。
 // 每种通道先试 api.github.com JSON，失败再退回 github.com releases/latest 的 302 重定向解析。
 
 import (
@@ -18,22 +14,19 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"qqsecond/internal/version"
+
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const (
 	releasesAPIURL  = "https://api.github.com/repos/Admirepowered/qq-second/releases/latest"
 	releasesPageURL = "https://github.com/Admirepowered/qq-second/releases/latest"
 )
-
-// fallbackProxyPorts 常见本地代理端口（env 与 git 配置都找不到时依次尝试）。
-var fallbackProxyPorts = []string{"7890", "7897", "48952", "10809", "1080"}
 
 // 域名固定 IP 表（DNS 被污染时的兜底）。
 var pinnedIPs = map[string]string{
@@ -58,12 +51,21 @@ var lastGoodChannel atomic.Value // string
 // CheckUpdate 按多级通道查询最新版本。
 func (a *App) CheckUpdate() (*UpdateInfo, error) {
 	var errs []string
-	channels := []string{"proxy", "pinned", "plain"}
+	channels := []string{"pinned", "plain"}
+	// 只在手动设置了代理时启用 proxy 通道（不做任何自动探测）。
+	if a.manualProxy() != "" {
+		channels = append([]string{"proxy"}, channels...)
+	}
 	if good, ok := lastGoodChannel.Load().(string); ok && good != "" {
 		channels = append([]string{good}, channels...)
 	}
+	var errsSeen = map[string]bool{}
 	for _, ch := range channels {
-		info, err := checkUpdateVia(ch)
+		if errsSeen[ch] {
+			continue
+		}
+		errsSeen[ch] = true
+		info, err := a.checkUpdateVia(ch)
 		if err == nil && info != nil {
 			lastGoodChannel.Store(ch)
 			return info, nil
@@ -78,8 +80,8 @@ func (a *App) CheckUpdate() (*UpdateInfo, error) {
 	return nil, fmt.Errorf("%s", strings.Join(errs, " | "))
 }
 
-func checkUpdateVia(channel string) (*UpdateInfo, error) {
-	client, err := githubClient(channel)
+func (a *App) checkUpdateVia(channel string) (*UpdateInfo, error) {
+	client, err := a.githubClient(channel)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +132,15 @@ func checkUpdateVia(channel string) (*UpdateInfo, error) {
 	}, nil
 }
 
+// manualProxy 读取手动设置的代理地址（不做任何自动探测）。
+func (a *App) manualProxy() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return strings.TrimSpace(a.store.Settings.UpdateProxy)
+}
+
 // githubClient 按通道构造 HTTP client。
-func githubClient(channel string) (*http.Client, error) {
+func (a *App) githubClient(channel string) (*http.Client, error) {
 	switch channel {
 	case "pinned":
 		tr := &http.Transport{
@@ -148,9 +157,9 @@ func githubClient(channel string) (*http.Client, error) {
 		}
 		return &http.Client{Timeout: 10 * time.Second, Transport: tr}, nil
 	case "proxy":
-		proxyStr := detectLocalProxy()
+		proxyStr := a.manualProxy()
 		if proxyStr == "" {
-			return nil, fmt.Errorf("no local proxy found")
+			return nil, fmt.Errorf("未设置代理")
 		}
 		proxyURL, err := url.Parse(proxyStr)
 		if err != nil {
@@ -206,35 +215,19 @@ func hostOf(target string) string {
 	return u.Host
 }
 
+// OpenReleasePage 用系统浏览器打开 Release 页面。
+func (a *App) OpenReleasePage() {
+	if a.ctx != nil {
+		wailsruntime.BrowserOpenURL(a.ctx, releasesPageURL)
+	}
+}
+
 func truncateNotes(s string, n int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= n {
 		return s
 	}
 	return s[:n] + "..."
-}
-
-// detectLocalProxy 依次探测：环境变量 → git 全局配置 → 常见端口（TCP 可连即用）。
-func detectLocalProxy() string {
-	for _, key := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
-		if v := os.Getenv(key); v != "" {
-			return v
-		}
-	}
-	if out, err := exec.Command("git", "config", "--global", "--get", "http.proxy").Output(); err == nil {
-		if v := strings.TrimSpace(string(out)); v != "" {
-			return v
-		}
-	}
-	for _, port := range fallbackProxyPorts {
-		addr := net.JoinHostPort("127.0.0.1", port)
-		conn, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return "http://" + addr
-		}
-	}
-	return ""
 }
 
 func readAllLimit(r io.Reader, limit int64) ([]byte, error) {

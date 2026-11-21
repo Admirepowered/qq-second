@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Settings 是全部持久化的用户偏好，与前端 prefsStore 一一对应（camelCase JSON）。
@@ -20,6 +21,8 @@ type Settings struct {
 	SurfaceOpacity   int      `json:"surfaceOpacity"`   // 40-100 界面板材不透明度
 	PreferredQuality string   `json:"preferredQuality"` // standard | high | lossless
 	CloseBehavior    string   `json:"closeBehavior"`    // hide | exit（点关闭按钮时隐藏到托盘或退出）
+	UpdateProxy      string   `json:"updateProxy"`      // 手动代理地址（空=自动探测），如 http://127.0.0.1:7890
+	PlaybackNetwork  string   `json:"playbackNetwork"`  // direct | proxy（歌曲播放网络）
 	LocalFolders     []string `json:"localFolders"`
 }
 
@@ -92,6 +95,10 @@ func clampSettings(s Settings) Settings {
 	}
 	if s.CloseBehavior != "hide" && s.CloseBehavior != "exit" {
 		s.CloseBehavior = "hide"
+	}
+	s.UpdateProxy = strings.TrimSpace(s.UpdateProxy)
+	if s.PlaybackNetwork != "direct" && s.PlaybackNetwork != "proxy" {
+		s.PlaybackNetwork = "direct"
 	}
 	if s.LocalFolders == nil {
 		s.LocalFolders = []string{}
