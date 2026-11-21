@@ -109,7 +109,7 @@ func (a *App) checkUpdateVia(channel string) (*UpdateInfo, error) {
 				ReleaseURL:     release.HTMLURL,
 				ReleaseNotes:   truncateNotes(release.Body, 500),
 				CheckedAt:      time.Now().Unix(),
-				HasUpdate:      latest != "" && latest != version.Version,
+				HasUpdate:      latest != "" && isNewerVersion(latest, version.Version),
 			}
 			a.fillPlatformAsset(info, latest)
 			// API 列表里的资产地址优先
@@ -150,13 +150,31 @@ func (a *App) checkUpdateVia(channel string) (*UpdateInfo, error) {
 		LatestVersion:  tag,
 		ReleaseURL:     releasesPageURL,
 		CheckedAt:      time.Now().Unix(),
-		HasUpdate:      tag != version.Version,
+		HasUpdate:      isNewerVersion(tag, version.Version),
 	}
 	a.fillPlatformAsset(info, tag)
 	a.mu.Lock()
 	a.updateInfo = info
 	a.mu.Unlock()
 	return info, nil
+}
+
+// isNewerVersion 语义化比较 a > b（a.b.c 三段数字；不规范格式按 0 处理）。
+func isNewerVersion(a, b string) bool {
+	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < 3; i++ {
+		var ai, bi int
+		if i < len(pa) {
+			fmt.Sscanf(pa[i], "%d", &ai)
+		}
+		if i < len(pb) {
+			fmt.Sscanf(pb[i], "%d", &bi)
+		}
+		if ai != bi {
+			return ai > bi
+		}
+	}
+	return false
 }
 
 // fillPlatformAsset 填充平台与默认资产地址（redirect 通道没有资产列表，按命名约定构造）。
