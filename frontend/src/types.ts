@@ -201,7 +201,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (!['standard', 'high', 'lossless'].includes(s.preferredQuality)) s.preferredQuality = def.preferredQuality;
   if (s.closeBehavior !== 'hide' && s.closeBehavior !== 'exit') s.closeBehavior = 'hide';
   s.backgroundBlur = Math.max(0, Math.min(40, s.backgroundBlur || 0));
-  s.artworkInfluence = Math.max(0, Math.min(100, s.artworkInfluence ?? 60));
+  s.artworkInfluence = Math.max(10, Math.min(100, s.artworkInfluence ?? 60));
   s.surfaceOpacity = Math.max(40, Math.min(100, s.surfaceOpacity ?? 88));
   if (!Array.isArray(s.localFolders)) s.localFolders = [];
   return s;

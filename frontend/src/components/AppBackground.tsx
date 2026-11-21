@@ -39,7 +39,8 @@ export function AppBackground() {
     backgroundColor: color || undefined,
     backgroundSize: settings.backgroundFit === 'contain' ? 'contain' : 'cover',
     filter: mode === 'artwork' ? `blur(${Math.min(30, settings.backgroundBlur + 8)}px) saturate(0.9)` : settings.backgroundBlur > 0 ? `blur(${settings.backgroundBlur}px)` : undefined,
-    opacity: mode === 'image' || mode === 'artwork' ? settings.artworkInfluence / 100 : 1,
+    // 图片模式始终完整显示；影响度只作用于封面模式（当前曲封面与背景的融合度）
+    opacity: mode === 'artwork' ? settings.artworkInfluence / 100 : 1,
   };
 
   return (
