@@ -74,6 +74,9 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
     folders=null → 本地音乐页崩溃）。新增接口/字段时逐个确认。
 15. **测试禁止动用户真实数据**：调 QQLogout 等会清凭据/覆盖设置的操作只能在
     测试账号上做；在用户主环境验证时禁止清空其登录态。
+15b. **测试进程纪律**：功能验证一律用 dev 浏览器页（不占桌面）；仅验证原生窗口
+    行为（托盘/拖动/单实例）时短暂启动正式版并立即关闭；每次收尾清理全部相关
+    进程（QQSecond-dev.exe / 5173 端口 node / QQSecond.exe），不留后台实例。
 16. **版本号迭代规则**：`major.minor.patch`。patch 由 AI 每次对话开始时 +1；
     minor 由维护者升级（升级后 patch 归 1，因为是修补 commit 计数）；major 同理。
     CI 不做任何 bump。
