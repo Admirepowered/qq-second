@@ -1,33 +1,18 @@
 name: Build & Release
 
-# 手动触发：可选只构建、或构建并上传到 GitHub Release；Windows 产物默认 UPX 压缩。
+# 手动触发：构建当前版本 → 可选上传 GitHub Release → 发布成功后自动将小版本号 +1 并提交。
+# 版本号从 internal/version/version.go 读取，不支持手动输入；中间版本号变化请直接改 version.go。
 on:
   workflow_dispatch:
     inputs:
-      build:
-        description: 构建产物
-        type: boolean
-        default: true
       release:
         description: 构建并上传到 GitHub Release
         type: boolean
         default: false
-      version:
-        description: 版本号（留空则用 internal/version/version.go 里的值）
-        type: string
-        required: false
       prerelease:
         description: 标记为预发布（Pre-release）
         type: boolean
         default: false
-      upx:
-        description: Windows 产物用 UPX 压缩
-        type: boolean
-        default: true
-      build_linux:
-        description: 构建 Linux amd64 产物
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -43,31 +28,22 @@ jobs:
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       tag: ${{ steps.resolve.outputs.tag }}
-      explicit: ${{ steps.resolve.outputs.explicit }}
     steps:
       - uses: actions/checkout@v4
       - id: resolve
         shell: bash
         run: |
           set -euo pipefail
-          v="${{ inputs.version }}"
-          explicit=false
-          if [ -n "$v" ]; then
-            explicit=true
-          else
-            v=$(grep -oP 'const Version = "\K[^"]+' internal/version/version.go)
-          fi
+          v=$(grep -oP 'const Version = "\K[^"]+' internal/version/version.go)
           v="${v#v}"
-          if [ -z "$v" ]; then echo "无法确定版本号"; exit 1; fi
+          if [ -z "$v" ]; then echo "无法从 internal/version/version.go 读取版本号"; exit 1; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "tag=v$v" >> "$GITHUB_OUTPUT"
-          echo "explicit=$explicit" >> "$GITHUB_OUTPUT"
-          echo "resolved version: v$v (explicit=$explicit)"
+          echo "resolved version: v$v"
 
   client-windows:
     name: Client / Windows amd64
     needs: meta
-    if: ${{ inputs.build }}
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -87,15 +63,6 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           (Join-Path (go env GOPATH) 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           (Join-Path (go env GOPATH) 'bin\wails.exe') | ForEach-Object { & $_ version }
-      - name: Apply requested version
-        if: ${{ needs.meta.outputs.explicit == 'true' }}
-        shell: pwsh
-        run: |
-          $path = 'internal/version/version.go'
-          $raw = Get-Content $path -Raw
-          $raw = $raw -replace 'const Version = "[^"]*"', "const Version = `"${{ needs.meta.outputs.version }}`""
-          Set-Content -Path $path -Value $raw -Encoding utf8
-          Select-String -Path $path -Pattern 'const Version'
       - name: Prepare icon assets
         shell: pwsh
         run: go run ./cmd/icon
@@ -106,7 +73,6 @@ jobs:
           wails build -clean -platform windows/amd64 -ldflags "-s -w"
           if ($LASTEXITCODE -ne 0) { throw 'wails build failed' }
       - name: UPX compress
-        if: ${{ inputs.upx }}
         shell: pwsh
         run: |
           choco install upx -y --no-progress | Out-Null
@@ -126,20 +92,13 @@ jobs:
           path: dist/*.exe
           if-no-files-found: error
 
-  client-linux:
-    name: Client / Ubuntu 24.04 amd64
+  client-macos:
+    name: Client / macOS arm64
     needs: meta
-    if: ${{ inputs.build && inputs.build_linux }}
-    runs-on: ubuntu-24.04
+    runs-on: macos-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Install Wails dependencies
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -155,11 +114,6 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           "$(go env GOPATH)/bin/wails" version
-      - name: Apply requested version
-        if: ${{ needs.meta.outputs.explicit == 'true' }}
-        shell: bash
-        run: |
-          sed -i "s/^const Version = \"[^\"]*\"/const Version = \"${{ needs.meta.outputs.version }}\"/" internal/version/version.go
       - name: Prepare icon assets
         shell: bash
         run: go run ./cmd/icon
@@ -167,26 +121,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          wails build -clean -platform linux/amd64 -tags webkit2_41 -ldflags "-s -w"
+          wails build -clean -platform darwin/arm64 -ldflags "-s -w"
+          APP=$(find build/bin -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$APP" ]; then
+            echo "no .app bundle produced"; ls -R build/bin; exit 1
+          fi
+          echo "bundle: $APP"
+          # Ad-hoc 签名，避免 Gatekeeper 报损坏
+          codesign --force --deep --sign - "$APP" || true
           mkdir -p dist
-          tar -czf "dist/QQSecond-linux-amd64-${{ needs.meta.outputs.version }}.tar.gz" -C build/bin QQSecond
+          rm -rf dist/QQSecond.app
+          cp -R "$APP" dist/QQSecond.app
+          ditto -c -k --sequesterRsrc --keepParent dist/QQSecond.app \
+            "dist/QQSecond-macos-arm64-${{ needs.meta.outputs.version }}.zip"
+          rm -rf dist/QQSecond.app
           ls -lh dist
       - uses: actions/upload-artifact@v4
         with:
-          name: client-linux-amd64
-          path: dist/*.tar.gz
+          name: client-macos-arm64
+          path: dist/*.zip
           if-no-files-found: error
 
   release:
     name: Upload to GitHub Release
-    needs: [meta, client-windows, client-linux]
-    # Linux 因 runner/依赖问题被跳过时不应连累发布。
-    if: >-
-      ${{ always() && inputs.build && inputs.release
-          && needs.meta.result == 'success'
-          && needs.client-windows.result == 'success'
-          && !contains(needs.*.result, 'failure')
-          && !contains(needs.*.result, 'cancelled') }}
+    needs: [meta, client-windows, client-macos]
+    if: ${{ always() && inputs.release && needs.meta.result == 'success' && needs.client-windows.result == 'success' && needs.client-macos.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -208,3 +167,29 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: dist/*
+
+  bump-patch:
+    name: Auto bump patch version
+    needs: [meta, release]
+    # Release 发布成功后把小版本号 +1（0.1.1 → 0.1.2），供下次构建使用。
+    if: ${{ always() && inputs.release && needs.meta.result == 'success' && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Bump patch version
+        shell: bash
+        run: |
+          set -euo pipefail
+          v="${{ needs.meta.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$v"
+          next="$major.$minor.$((patch + 1))"
+          sed -i "s/^const Version = \"[^\"]*\"/const Version = \"$next\"/" internal/version/version.go
+          grep 'const Version' internal/version/version.go
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add internal/version/version.go
+          git commit -m "chore: bump version to $next [skip ci]"
+          git push

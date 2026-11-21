@@ -191,6 +191,7 @@ type PlaylistInfo struct {
 	SongCount int    `json:"songCount,omitempty"`
 	Desc      string `json:"desc,omitempty"`
 	UpdateTime string `json:"updateTime,omitempty"`
+	DirID     int    `json:"-"` // 内部：dirId（201=我喜欢）
 }
 
 // PlaylistDetail 歌单/榜单详情。

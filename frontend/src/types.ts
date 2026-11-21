@@ -177,6 +177,26 @@ export interface QRLoginPoll {
   message: string;
 }
 
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  releaseUrl: string;
+  releaseNotes?: string;
+  checkedAt: number;
+  platform?: 'windows' | 'macos' | 'other';
+  assetUrl?: string;
+  assetName?: string;
+}
+
+export interface UserAccount {
+  uin: string;
+  nickname: string;
+  avatar?: string;
+  favSongs: Track[];
+  myPlaylists: PlaylistInfo[];
+}
+
 export const emptySettings = (): Settings => ({
   colorMode: 'dark',
   palette: 'default',
@@ -208,6 +228,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   if (s.playbackNetwork !== 'direct' && s.playbackNetwork !== 'proxy') s.playbackNetwork = 'direct';
   s.backgroundBlur = Math.max(0, Math.min(40, s.backgroundBlur || 0));
   s.artworkInfluence = Math.max(10, Math.min(100, s.artworkInfluence ?? 60));
+  s.surfaceOpacity = Math.max(0, Math.min(100, s.surfaceOpacity ?? 88));
   s.surfaceOpacity = Math.max(40, Math.min(100, s.surfaceOpacity ?? 88));
   if (!Array.isArray(s.localFolders)) s.localFolders = [];
   return s;

@@ -87,7 +87,7 @@ func clampSettings(s Settings) Settings {
 	}
 	s.BackgroundBlur = clampInt(s.BackgroundBlur, 0, 40)
 	s.ArtworkInfluence = clampInt(s.ArtworkInfluence, 10, 100)
-	s.SurfaceOpacity = clampInt(s.SurfaceOpacity, 40, 100)
+	s.SurfaceOpacity = clampInt(s.SurfaceOpacity, 0, 100)
 	switch s.PreferredQuality {
 	case "standard", "high", "lossless":
 	default:

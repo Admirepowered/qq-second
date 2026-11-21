@@ -1,4 +1,6 @@
-// 设置页：外观（主题/主色/背景）/ 播放音质 / 本地文件夹 / 账号。
+// 设置页：外观（主题/主色/背景）/ 播放 / 通用（自启/代理/播放网络）/ 账号 / 关于。
+// 注意：所有 section 都是模块级组件——定义在父组件体内会让 React 每次渲染
+// 重挂载子树，导致输入框丢焦点（代理地址输入框无法聚焦的根因）。
 
 import { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, LogOut, RefreshCw } from 'lucide-react';
@@ -15,21 +17,15 @@ import {
   SetAutoStart,
   CheckUpdate,
   OpenReleasePage,
+  DownloadUpdate,
+  ApplyUpdate,
+  EventsOn,
 } from '../api';
 import { usePrefsStore } from '../store/prefs';
 import { PALETTES } from '../theme';
-import { BackgroundImage, QRCodeImage, QRLoginPoll } from '../types';
+import { BackgroundImage, QRCodeImage, QRLoginPoll, Settings as SettingsData, UpdateInfo } from '../types';
 
 export function SettingsPage() {
-  const { settings, update, credential, refreshCredential } = usePrefsStore();
-  const [version, setVersion] = useState('');
-
-  useEffect(() => {
-    GetVersion()
-      .then((v) => setVersion(String(v)))
-      .catch(() => {});
-  }, []);
-
   return (
     <div className="settings-page">
       <AppearanceSection />
@@ -39,315 +35,6 @@ export function SettingsPage() {
       <AboutSection />
     </div>
   );
-
-  function GeneralSection() {
-    const [autoStart, setAutoStartState] = useState(false);
-    useEffect(() => {
-      GetAutoStart()
-        .then((v) => setAutoStartState(Boolean(v)))
-        .catch(() => {});
-    }, []);
-    return (
-      <div className="settings-section">
-        <h3>通用</h3>
-        <SettingRow
-          label="开机自启动"
-          desc="登录 Windows 后自动运行（当前用户，无需管理员权限）"
-          control={
-            <input
-              type="checkbox"
-              checked={autoStart}
-              onChange={async (e) => {
-                const next = e.target.checked;
-                try {
-                  await SetAutoStart(next);
-                  setAutoStartState(next);
-                } catch (err) {
-                  console.error('autostart failed', err);
-                }
-              }}
-              style={{ width: 20, height: 20, accentColor: 'var(--accent)', cursor: 'pointer' }}
-            />
-          }
-        />
-        <SettingRow
-          label="代理地址"
-          desc="用于更新检查与播放代理，如 http://127.0.0.1:7890；留空则不使用代理"
-          control={
-            <input
-              className="local-filter"
-              style={{ maxWidth: 240 }}
-              placeholder="http://127.0.0.1:7890"
-              value={settings.updateProxy}
-              onChange={(e) => update({ updateProxy: e.target.value })}
-            />
-          }
-        />
-        <SettingRow
-          label="歌曲播放网络"
-          desc="跟随代理时使用上面填写的代理地址下载歌曲流"
-          control={
-            <SegGroup
-              value={settings.playbackNetwork}
-              options={[
-                { value: 'direct', label: '直连' },
-                { value: 'proxy', label: '跟随代理' },
-              ]}
-              onChange={(v) => update({ playbackNetwork: v as never })}
-            />
-          }
-        />
-      </div>
-    );
-  }
-
-  function AboutSection() {
-    const [update, setUpdate] = useState<{
-      hasUpdate: boolean;
-      latestVersion: string;
-      currentVersion: string;
-      releaseNotes?: string;
-    } | null>(null);
-    const [checking, setChecking] = useState(false);
-    const [err, setErr] = useState('');
-
-    const check = async () => {
-      setChecking(true);
-      setErr('');
-      try {
-        const info = (await CheckUpdate()) as never as {
-          hasUpdate: boolean;
-          latestVersion: string;
-          currentVersion: string;
-          releaseNotes?: string;
-        };
-        setUpdate(info);
-      } catch (e) {
-        setErr(String(e));
-      } finally {
-        setChecking(false);
-      }
-    };
-
-    useEffect(() => {
-      void check();
-    }, []);
-
-    return (
-      <div className="settings-section">
-        <h3>关于</h3>
-        <SettingRow
-          label={`QQ Second ${version}`}
-          desc="本地 + QQ 音乐播放器 · 游客模式，仅播放服务方授权内容"
-          control={
-            <button className="btn" onClick={check} disabled={checking}>
-              {checking ? '检查中…' : '检查更新'}
-            </button>
-          }
-        />
-        {err ? <div className="setting-desc" style={{ color: '#ff7b72' }}>检查失败：{err}</div> : null}
-        {update ? (
-          update.hasUpdate ? (
-            <div className="setting-row">
-              <div>
-                <div className="setting-label update-available">
-                  发现新版本 v{update.latestVersion}（当前 v{update.currentVersion}）
-                </div>
-                {update.releaseNotes ? <div className="setting-desc">{update.releaseNotes}</div> : null}
-              </div>
-              <button className="btn primary" onClick={() => OpenReleasePage()}>
-                前往下载
-              </button>
-            </div>
-          ) : (
-            <div className="setting-desc" style={{ padding: '6px 0' }}>
-              已是最新版本{update.latestVersion ? `（latest v${update.latestVersion}）` : ''}
-            </div>
-          )
-        ) : null}
-      </div>
-    );
-  }
-
-  function AppearanceSection() {
-    return (
-      <div className="settings-section">
-        <h3>外观</h3>
-        <SettingRow
-          label="主题模式"
-          control={
-            <SegGroup
-              value={settings.colorMode}
-              options={[
-                { value: 'system', label: '跟随系统' },
-                { value: 'dark', label: '深色' },
-                { value: 'light', label: '浅色' },
-              ]}
-              onChange={(v) => update({ colorMode: v as never })}
-            />
-          }
-        />
-        <SettingRow
-          label="主题色"
-          control={
-            <div className="palette-grid">
-              {PALETTES.map((p) => (
-                <button
-                  key={p.id}
-                  className={`palette-swatch${settings.palette === p.id ? ' active' : ''}`}
-                  style={{ background: p.primary }}
-                  title={p.label}
-                  onClick={() => update({ palette: p.id, primaryColor: p.primary })}
-                />
-              ))}
-              <input
-                type="color"
-                value={settings.primaryColor}
-                title="自定义颜色"
-                onChange={(e) => update({ palette: 'custom', primaryColor: e.target.value })}
-              />
-            </div>
-          }
-        />
-        <SettingRow
-          label="背景模式"
-          control={
-            <SegGroup
-              value={settings.backgroundMode}
-              options={[
-                { value: 'default', label: '默认' },
-                { value: 'artwork', label: '封面' },
-                { value: 'image', label: '图片' },
-                { value: 'color', label: '纯色' },
-              ]}
-              onChange={(v) => update({ backgroundMode: v as never })}
-            />
-          }
-        />
-        {settings.backgroundMode === 'image' ? (
-          <>
-            <SettingRow
-              label="背景图片"
-              desc="选择本地图片作为背景"
-              control={
-                <button
-                  className="btn"
-                  onClick={async () => {
-                    await SelectBackgroundImage();
-                  }}
-                >
-                  <ImageIcon size={14} /> 添加图片
-                </button>
-              }
-            />
-            <BackgroundThumbs />
-          </>
-        ) : null}
-        {settings.backgroundMode === 'color' ? (
-          <SettingRow
-            label="背景颜色"
-            control={<input type="color" value={settings.backgroundColor} onChange={(e) => update({ backgroundColor: e.target.value })} />}
-          />
-        ) : null}
-        {settings.backgroundMode === 'image' || settings.backgroundMode === 'artwork' ? (
-          <>
-            <SettingRow
-              label={`背景模糊 ${settings.backgroundBlur}px`}
-              control={
-                <RangeInput
-                  value={settings.backgroundBlur}
-                  min={0}
-                  max={40}
-                  onChange={(v) => update({ backgroundBlur: v })}
-                />
-              }
-            />
-            <SettingRow
-              label={`背景影响度 ${settings.artworkInfluence}%`}
-              control={
-                <RangeInput
-                  value={settings.artworkInfluence}
-                  min={10}
-                  max={100}
-                  onChange={(v) => update({ artworkInfluence: v })}
-                />
-              }
-            />
-          </>
-        ) : null}
-        <SettingRow
-          label={`面板不透明度 ${settings.surfaceOpacity}%`}
-          control={
-            <RangeInput value={settings.surfaceOpacity} min={40} max={100} onChange={(v) => update({ surfaceOpacity: v })} />
-          }
-        />
-      </div>
-    );
-  }
-
-  function PlaybackSection() {
-    return (
-      <div className="settings-section">
-        <h3>播放</h3>
-        <SettingRow
-          label="首选音质"
-          desc="实际音质取决于账号权限与歌曲资源，超限时自动降级"
-          control={
-            <SegGroup
-              value={settings.preferredQuality}
-              options={[
-                { value: 'standard', label: '标准 128k' },
-                { value: 'high', label: '较高 320k' },
-                { value: 'lossless', label: '无损' },
-              ]}
-              onChange={(v) => update({ preferredQuality: v as never })}
-            />
-          }
-        />
-        <SettingRow
-          label="关闭按钮行为"
-          desc="隐藏到托盘后可从托盘菜单或双击托盘图标唤起"
-          control={
-            <SegGroup
-              value={settings.closeBehavior ?? 'hide'}
-              options={[
-                { value: 'hide', label: '隐藏到托盘' },
-                { value: 'exit', label: '直接退出' },
-              ]}
-              onChange={(v) => update({ closeBehavior: v as never })}
-            />
-          }
-        />
-      </div>
-    );
-  }
-
-  function AccountSection() {
-    return (
-      <div className="settings-section">
-        <h3>账号</h3>
-        {credential?.uin ? (
-          <SettingRow
-            label={`已登录：${credential.nickname || credential.uin}`}
-            desc="登录后可播放账号有权收听的更高音质"
-            control={
-              <button
-                className="btn"
-                onClick={async () => {
-                  await QQLogout();
-                  await refreshCredential();
-                }}
-              >
-                <LogOut size={14} /> 退出登录
-              </button>
-            }
-          />
-        ) : (
-          <QRLoginBlock onDone={() => void refreshCredential()} />
-        )}
-      </div>
-    );
-  }
 }
 
 function SettingRow({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) {
@@ -384,15 +71,117 @@ function SegGroup({
 
 function RangeInput({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <input
-        type="range"
-        className="settings-range"
-        min={min}
-        max={max}
-        value={value}
-        style={{ '--range-progress': `${((value - min) / (max - min)) * 100}%` } as React.CSSProperties}
-        onChange={(e) => onChange(Number(e.target.value))}
+    <input
+      type="range"
+      className="settings-range"
+      min={min}
+      max={max}
+      value={value}
+      style={{ '--range-progress': `${((value - min) / (max - min)) * 100}%` } as React.CSSProperties}
+      onChange={(e) => onChange(Number(e.target.value))}
+    />
+  );
+}
+
+// ---------- 外观 ----------
+
+function AppearanceSection() {
+  const { settings, update } = usePrefsStore();
+  return (
+    <div className="settings-section">
+      <h3>外观</h3>
+      <SettingRow
+        label="主题模式"
+        control={
+          <SegGroup
+            value={settings.colorMode}
+            options={[
+              { value: 'system', label: '跟随系统' },
+              { value: 'dark', label: '深色' },
+              { value: 'light', label: '浅色' },
+            ]}
+            onChange={(v) => update({ colorMode: v as never })}
+          />
+        }
+      />
+      <SettingRow
+        label="主题色"
+        control={
+          <div className="palette-grid">
+            {PALETTES.map((p) => (
+              <button
+                key={p.id}
+                className={`palette-swatch${settings.palette === p.id ? ' active' : ''}`}
+                style={{ background: p.primary }}
+                title={p.label}
+                onClick={() => update({ palette: p.id, primaryColor: p.primary })}
+              />
+            ))}
+            <input
+              type="color"
+              value={settings.primaryColor}
+              title="自定义颜色"
+              onChange={(e) => update({ palette: 'custom', primaryColor: e.target.value })}
+            />
+          </div>
+        }
+      />
+      <SettingRow
+        label="背景模式"
+        control={
+          <SegGroup
+            value={settings.backgroundMode}
+            options={[
+              { value: 'default', label: '默认' },
+              { value: 'artwork', label: '封面' },
+              { value: 'image', label: '图片' },
+              { value: 'color', label: '纯色' },
+            ]}
+            onChange={(v) => update({ backgroundMode: v as never })}
+          />
+        }
+      />
+      {settings.backgroundMode === 'image' ? (
+        <>
+          <SettingRow
+            label="背景图片"
+            desc="选择本地图片作为背景"
+            control={
+              <button
+                className="btn"
+                onClick={async () => {
+                  await SelectBackgroundImage();
+                }}
+              >
+                <ImageIcon size={14} /> 添加图片
+              </button>
+            }
+          />
+          <BackgroundThumbs />
+        </>
+      ) : null}
+      {settings.backgroundMode === 'color' ? (
+        <SettingRow
+          label="背景颜色"
+          control={<input type="color" value={settings.backgroundColor} onChange={(e) => update({ backgroundColor: e.target.value })} />}
+        />
+      ) : null}
+      {settings.backgroundMode === 'image' || settings.backgroundMode === 'artwork' ? (
+        <>
+          <SettingRow
+            label={`背景模糊 ${settings.backgroundBlur}px`}
+            control={<RangeInput value={settings.backgroundBlur} min={0} max={40} onChange={(v) => update({ backgroundBlur: v })} />}
+          />
+          <SettingRow
+            label={`背景影响度 ${settings.artworkInfluence}%`}
+            control={<RangeInput value={settings.artworkInfluence} min={10} max={100} onChange={(v) => update({ artworkInfluence: v })} />}
+          />
+        </>
+      ) : null}
+      <SettingRow
+        label={`面板不透明度 ${settings.surfaceOpacity}%`}
+        desc="越低背景越明显，0% 时面板完全透明"
+        control={<RangeInput value={settings.surfaceOpacity} min={0} max={100} onChange={(v) => update({ surfaceOpacity: v })} />}
       />
     </div>
   );
@@ -447,6 +236,140 @@ function BackgroundThumbs() {
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------- 播放 ----------
+
+function PlaybackSection() {
+  const { settings, update } = usePrefsStore();
+  return (
+    <div className="settings-section">
+      <h3>播放</h3>
+      <SettingRow
+        label="首选音质"
+        desc="实际音质取决于账号权限与歌曲资源，超限时自动降级"
+        control={
+          <SegGroup
+            value={settings.preferredQuality}
+            options={[
+              { value: 'standard', label: '标准 128k' },
+              { value: 'high', label: '较高 320k' },
+              { value: 'lossless', label: '无损' },
+            ]}
+            onChange={(v) => update({ preferredQuality: v as never })}
+          />
+        }
+      />
+      <SettingRow
+        label="关闭按钮行为"
+        desc="隐藏到托盘后可从托盘菜单或双击托盘图标唤起"
+        control={
+          <SegGroup
+            value={settings.closeBehavior}
+            options={[
+              { value: 'hide', label: '隐藏到托盘' },
+              { value: 'exit', label: '直接退出' },
+            ]}
+            onChange={(v) => update({ closeBehavior: v as never })}
+          />
+        }
+      />
+    </div>
+  );
+}
+
+// ---------- 通用 ----------
+
+function GeneralSection() {
+  const { settings, update } = usePrefsStore();
+  const [autoStart, setAutoStartState] = useState(false);
+  useEffect(() => {
+    GetAutoStart()
+      .then((v) => setAutoStartState(Boolean(v)))
+      .catch(() => {});
+  }, []);
+  return (
+    <div className="settings-section">
+      <h3>通用</h3>
+      <SettingRow
+        label="开机自启动"
+        desc="登录 Windows 后自动运行（当前用户，无需管理员权限）"
+        control={
+          <input
+            type="checkbox"
+            checked={autoStart}
+            onChange={async (e) => {
+              const next = e.target.checked;
+              try {
+                await SetAutoStart(next);
+                setAutoStartState(next);
+              } catch (err) {
+                console.error('autostart failed', err);
+              }
+            }}
+            style={{ width: 20, height: 20, accentColor: 'var(--accent)', cursor: 'pointer' }}
+          />
+        }
+      />
+      <SettingRow
+        label="代理地址"
+        desc="用于更新检查与播放代理，如 http://127.0.0.1:7890；留空则不使用代理"
+        control={
+          <input
+            className="local-filter"
+            style={{ maxWidth: 240 }}
+            placeholder="http://127.0.0.1:7890"
+            value={settings.updateProxy}
+            onChange={(e) => update({ updateProxy: e.target.value })}
+          />
+        }
+      />
+      <SettingRow
+        label="歌曲播放网络"
+        desc="跟随代理时使用上面填写的代理地址下载歌曲流"
+        control={
+          <SegGroup
+            value={settings.playbackNetwork}
+            options={[
+              { value: 'direct', label: '直连' },
+              { value: 'proxy', label: '跟随代理' },
+            ]}
+            onChange={(v) => update({ playbackNetwork: v as never })}
+          />
+        }
+      />
+    </div>
+  );
+}
+
+// ---------- 账号 ----------
+
+function AccountSection() {
+  const { credential, refreshCredential } = usePrefsStore();
+  return (
+    <div className="settings-section">
+      <h3>账号</h3>
+      {credential?.uin ? (
+        <SettingRow
+          label={`已登录：${credential.nickname || credential.uin}`}
+          desc="登录后可播放账号有权收听的更高音质；侧栏“我的音乐”可查看收藏与歌单"
+          control={
+            <button
+              className="btn"
+              onClick={async () => {
+                await QQLogout();
+                await refreshCredential();
+              }}
+            >
+              <LogOut size={14} /> 退出登录
+            </button>
+          }
+        />
+      ) : (
+        <QRLoginBlock onDone={() => void refreshCredential()} />
+      )}
     </div>
   );
 }
@@ -511,6 +434,108 @@ function QRLoginBlock({ onDone }: { onDone: () => void }) {
         </button>
       )}
       {status ? <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)' }}>{status}</div> : null}
+    </div>
+  );
+}
+
+// ---------- 关于 ----------
+
+function AboutSection() {
+  const [version, setVersion] = useState('');
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [err, setErr] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadPct, setDownloadPct] = useState(0);
+  const [applyMsg, setApplyMsg] = useState('');
+
+  const check = async () => {
+    setChecking(true);
+    setErr('');
+    try {
+      const info = (await CheckUpdate()) as unknown as UpdateInfo;
+      setUpdate(info);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // Windows 一键更新：下载对应版本 exe → 自动替换 → 重启
+  const downloadAndApply = async () => {
+    if (!update) return;
+    setDownloading(true);
+    setDownloadPct(0);
+    setApplyMsg('');
+    try {
+      await DownloadUpdate(); // 进度经 update:progress 事件上报
+      if (update.platform === 'windows') {
+        setApplyMsg('安装中，应用即将重启…');
+        await ApplyUpdate();
+      } else {
+        setDownloading(false);
+        setApplyMsg('已下载到应用数据目录（update/），macOS 请手动安装');
+      }
+    } catch (e) {
+      setDownloading(false);
+      setApplyMsg(`更新失败：${e}`);
+    }
+  };
+
+  useEffect(() => {
+    GetVersion()
+      .then((v) => setVersion(String(v)))
+      .catch(() => {});
+    const offProgress = EventsOn('update:progress', (pct: number) => {
+      setDownloadPct(Math.max(0, Math.min(100, Math.round(pct))));
+    });
+    void check();
+    return () => {
+      offProgress?.();
+    };
+  }, []);
+
+  return (
+    <div className="settings-section">
+      <h3>关于</h3>
+      <SettingRow
+        label={`QQ Second ${version}`}
+        desc="本地 + QQ 音乐播放器 · 游客模式，仅播放服务方授权内容"
+        control={
+          <button className="btn" onClick={check} disabled={checking}>
+            {checking ? '检查中…' : '检查更新'}
+          </button>
+        }
+      />
+      {err ? <div className="setting-desc" style={{ color: '#ff7b72' }}>检查失败：{err}</div> : null}
+      {update ? (
+        update.hasUpdate ? (
+          <div className="setting-row">
+            <div>
+              <div className="setting-label update-available">
+                发现新版本 v{update.latestVersion}（当前 v{update.currentVersion}）
+              </div>
+              {update.releaseNotes ? <div className="setting-desc">{update.releaseNotes}</div> : null}
+              {downloading ? <div className="setting-desc">下载中 {downloadPct}%{applyMsg ? ` · ${applyMsg}` : ''}</div> : null}
+              {applyMsg && !downloading ? <div className="setting-desc">{applyMsg}</div> : null}
+            </div>
+            {update.platform === 'windows' ? (
+              <button className="btn primary" onClick={downloadAndApply} disabled={downloading}>
+                {downloading ? `下载中 ${downloadPct}%` : '一键更新'}
+              </button>
+            ) : (
+              <button className="btn primary" onClick={() => OpenReleasePage()}>
+                前往下载
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="setting-desc" style={{ padding: '6px 0' }}>
+            已是最新版本{update.latestVersion ? `（latest v${update.latestVersion}）` : ''}
+          </div>
+        )
+      ) : null}
     </div>
   );
 }

@@ -33,8 +33,9 @@ type App struct {
 	qq      *qqmusic.Client
 	library *LocalLibrary
 
-	playMu    sync.Mutex
-	playIndex map[string]*playToken // token -> 解析结果
+	playMu     sync.Mutex
+	playIndex  map[string]*playToken // token -> 解析结果
+	updateInfo *UpdateInfo           // 最近一次更新检查结果
 }
 
 // playToken 是一次 QQ 播放解析的结果，前端只拿 token，签名 URL 不出后端。

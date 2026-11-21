@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -43,6 +44,9 @@ type UpdateInfo struct {
 	ReleaseURL     string `json:"releaseUrl"`
 	ReleaseNotes   string `json:"releaseNotes"`
 	CheckedAt      int64  `json:"checkedAt"`
+	Platform       string `json:"platform"`   // windows | macos | other
+	AssetURL       string `json:"assetUrl"`   // 当前平台对应资产下载地址
+	AssetName      string `json:"assetName"`
 }
 
 // lastGoodChannel 记住上次成功的通道，后续检查优先尝试。
@@ -92,17 +96,35 @@ func (a *App) checkUpdateVia(channel string) (*UpdateInfo, error) {
 			TagName string `json:"tag_name"`
 			HTMLURL string `json:"html_url"`
 			Body    string `json:"body"`
+			Assets  []struct {
+				Name               string `json:"name"`
+				BrowserDownloadURL string `json:"browser_download_url"`
+			} `json:"assets"`
 		}
 		if json.Unmarshal([]byte(body), &release) == nil && release.TagName != "" {
 			latest := strings.TrimPrefix(release.TagName, "v")
-			return &UpdateInfo{
+			info := &UpdateInfo{
 				CurrentVersion: version.Version,
 				LatestVersion:  latest,
 				ReleaseURL:     release.HTMLURL,
 				ReleaseNotes:   truncateNotes(release.Body, 500),
 				CheckedAt:      time.Now().Unix(),
 				HasUpdate:      latest != "" && latest != version.Version,
-			}, nil
+			}
+			a.fillPlatformAsset(info, latest)
+			// API 列表里的资产地址优先
+			want := assetName(latest)
+			for _, asset := range release.Assets {
+				if asset.Name == want {
+					info.AssetURL = asset.BrowserDownloadURL
+					info.AssetName = asset.Name
+					break
+				}
+			}
+			a.mu.Lock()
+			a.updateInfo = info
+			a.mu.Unlock()
+			return info, nil
 		}
 	}
 
@@ -123,13 +145,35 @@ func (a *App) checkUpdateVia(channel string) (*UpdateInfo, error) {
 			HasUpdate:      false,
 		}, nil
 	}
-	return &UpdateInfo{
+	info := &UpdateInfo{
 		CurrentVersion: version.Version,
 		LatestVersion:  tag,
 		ReleaseURL:     releasesPageURL,
 		CheckedAt:      time.Now().Unix(),
 		HasUpdate:      tag != version.Version,
-	}, nil
+	}
+	a.fillPlatformAsset(info, tag)
+	a.mu.Lock()
+	a.updateInfo = info
+	a.mu.Unlock()
+	return info, nil
+}
+
+// fillPlatformAsset 填充平台与默认资产地址（redirect 通道没有资产列表，按命名约定构造）。
+func (a *App) fillPlatformAsset(info *UpdateInfo, latest string) {
+	switch runtime.GOOS {
+	case "windows":
+		info.Platform = "windows"
+	case "darwin":
+		info.Platform = "macos"
+	default:
+		info.Platform = "other"
+	}
+	name := assetName(latest)
+	if name != "" && info.AssetURL == "" {
+		info.AssetName = name
+		info.AssetURL = fmt.Sprintf("https://github.com/Admirepowered/qq-second/releases/download/v%s/%s", latest, name)
+	}
 }
 
 // manualProxy 读取手动设置的代理地址（不做任何自动探测）。
@@ -155,7 +199,7 @@ func (a *App) githubClient(channel string) (*http.Client, error) {
 			},
 			TLSClientConfig: &tls.Config{},
 		}
-		return &http.Client{Timeout: 10 * time.Second, Transport: tr}, nil
+		return &http.Client{Timeout: 6 * time.Second, Transport: tr}, nil
 	case "proxy":
 		proxyStr := a.manualProxy()
 		if proxyStr == "" {
@@ -171,9 +215,9 @@ func (a *App) githubClient(channel string) (*http.Client, error) {
 			// pinned/plain 通道仍正常校验。
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
-		return &http.Client{Timeout: 10 * time.Second, Transport: tr}, nil
+		return &http.Client{Timeout: 6 * time.Second, Transport: tr}, nil
 	default:
-		return &http.Client{Timeout: 10 * time.Second}, nil
+		return &http.Client{Timeout: 6 * time.Second}, nil
 	}
 }
 

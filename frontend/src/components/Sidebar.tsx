@@ -1,13 +1,15 @@
 // 侧栏导航。
 
-import { Disc3, Home, ListMusic, Search as SearchIcon, Settings, TrendingUp } from 'lucide-react';
+import { Disc3, Heart, Home, ListMusic, Search as SearchIcon, Settings, TrendingUp } from 'lucide-react';
 import { useNavStore } from '../store/nav';
 import { usePlayerStore } from '../store/player';
+import { usePrefsStore } from '../store/prefs';
 
 export function Sidebar() {
   const { route, navigate } = useNavStore();
   const setLyricsOpen = usePlayerStore((s) => s.setLyricsOpen);
   const lyricsOpen = usePlayerStore((s) => s.lyricsOpen);
+  const credential = usePrefsStore((s) => s.credential);
 
   const go = (r: Parameters<typeof navigate>[0]) => {
     // 歌词页打开时导航会关闭歌词
@@ -37,6 +39,11 @@ export function Sidebar() {
       </button>
 
       <div className="nav-section-label">你的音乐</div>
+      {credential?.uin ? (
+        <button className={item(route.page === 'account')} onClick={() => go({ page: 'account' })}>
+          <Heart size={17} /> 我的收藏
+        </button>
+      ) : null}
       <button className={item(route.page === 'local')} onClick={() => go({ page: 'local' })}>
         <ListMusic size={17} /> 本地音乐
       </button>

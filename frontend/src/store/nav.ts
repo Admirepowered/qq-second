@@ -10,6 +10,7 @@ export type AppRoute =
   | { page: 'chart'; id: number; name: string }
   | { page: 'album'; id: string }
   | { page: 'artist'; id: string }
+  | { page: 'account' }
   | { page: 'local' }
   | { page: 'settings' };
 

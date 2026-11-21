@@ -23,6 +23,7 @@ export const {
   QQStartLogin,
   QQPollLogin,
   QQLogout,
+  QQUserAccount,
   GetCredential,
   AddLocalFolder,
   RemoveLocalFolder,
@@ -48,6 +49,8 @@ export function QQResolvePlayBinding(track: Track, preferredQuality: string) {
 export function SaveSession(session: SessionData) {
   return App_.SaveSession(session as never);
 }
+
+export { DownloadUpdate, ApplyUpdate } from '../wailsjs/go/app/App';
 
 // wails 运行时事件（托盘 → 前端）
 export { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';

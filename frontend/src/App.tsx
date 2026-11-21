@@ -11,6 +11,7 @@ import { HomePage } from './pages/HomePage';
 import { SearchPage } from './pages/SearchPage';
 import { ChartsPage, ChartDetailPage } from './pages/ChartsPage';
 import { PlaylistPage, AlbumPage, ArtistPage } from './pages/DetailPages';
+import { AccountPage } from './pages/AccountPage';
 import { LocalMusicPage } from './pages/LocalMusicPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useNavStore, AppRoute } from './store/nav';
@@ -26,6 +27,7 @@ const TITLES: Record<AppRoute['page'], string> = {
   chart: '排行榜',
   album: '专辑',
   artist: '歌手',
+  account: '我的收藏',
   local: '本地音乐',
   settings: '设置',
 };
@@ -85,6 +87,9 @@ export default function App() {
       break;
     case 'artist':
       page = <ArtistPage id={route.id} />;
+      break;
+    case 'account':
+      page = <AccountPage />;
       break;
     case 'local':
       page = <LocalMusicPage />;

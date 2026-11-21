@@ -102,3 +102,9 @@ func (a *App) ensureQQ() {
 		a.qq = qqmusic.NewClient()
 	}
 }
+
+// QQUserAccount 账号概览（收藏歌曲 + 我的歌单 + 收藏歌单）。
+func (a *App) QQUserAccount() (*qqmusic.UserAccount, error) {
+	a.ensureQQ()
+	return a.qq.GetUserAccount()
+}
