@@ -120,6 +120,8 @@ GOOS=linux go build ./internal/... ./cmd/...
 cd frontend && npx tsc --noEmit && npm run build
 go test ./internal/app/qqmusic/            # zzc 签名 + QRC 解密/解析测试向量
 go test ./internal/app/recognize/          # 识曲签名结构（magic/crc/TLV）+ 重采样
+go test ./internal/app/ -run 'TestInstallUpdate|TestSanityCheckExe'   # 更新安装（同盘）
+CROSS_VOLUME_DIR=D:\tmp\xvol go test ./internal/app/ -run TestCrossVolumeInstall  # 跨盘更新
 QQ_LIVE=1 go test ./internal/app/qqmusic/ -run 'TestLiveChartMapping|TestLiveDetailParsing'  # 榜单/详情字段名回归
 QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveGuestFlow -v   # 真实链路冒烟
 wails dev -browser                          # 浏览器调试（绑定可用）
@@ -138,6 +140,11 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   GPU 合成负担（已去掉全部 backdrop-filter 与位移动画），不是进程数。
 - **assetServer Middleware**：`/audio/*` 在 main.go 里拦截，不经过 dist 静态文件。
 - **vite HMR** 会重置 zustand store（含 __player/__prefs 调试句柄），dev 下测试前先 reload。
+- **跨盘自动更新会失败**：更新包下载在 `%APPDATA%`（C:），程序可能装在别的盘；
+  `os.Rename` 跨盘会报 "cannot move the file to a different disk drive"。正确流程
+  （已实现于 `installUpdate`）：先把新文件**复制到程序所在目录**（同盘暂存），再把
+  当前 exe 改名成 `QQSecond.exe.old.<ts>`，然后把暂存文件改名成主程序并重启；
+  启动时 `cleanupUpdateLeftovers` 清掉上次的 `.old`。不要改回直接 rename 下载文件。
 - **歌词活动行守卫不能用 startMs 真值判断**：首行（元数据行）startMs 常为 0，
   ```!lines[0].startMs``` 会把整个歌词同步判废。用 syncMode 判断。
   歌词全屏层需设置 ```--wails-draggable: drag```（交互区覆盖 no-drag），否则无边框窗口拖不动。

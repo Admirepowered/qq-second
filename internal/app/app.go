@@ -130,6 +130,9 @@ func (a *App) Startup(ctx context.Context) {
 	// 托盘（Windows 立即可见）
 	a.startTray()
 
+	// 清理上次自动更新留下的 .old / 暂存文件（旧进程可能还锁着，失败忽略）
+	cleanupUpdateLeftovers()
+
 	// 兜底显示窗口：个别机器上 WebView2 的首帧就绪回调会丢失，无边框窗口会一直
 	// 保持隐藏（现象：进程正常、前端日志正常，但看不到窗口）。这里幂等重试显示。
 	go func() {
