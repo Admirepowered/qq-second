@@ -130,6 +130,16 @@ func (a *App) Startup(ctx context.Context) {
 	// 托盘（Windows 立即可见）
 	a.startTray()
 
+	// 兜底显示窗口：个别机器上 WebView2 的首帧就绪回调会丢失，无边框窗口会一直
+	// 保持隐藏（现象：进程正常、前端日志正常，但看不到窗口）。这里幂等重试显示。
+	go func() {
+		for i := 0; i < 8; i++ {
+			time.Sleep(500 * time.Millisecond)
+			wailsruntime.WindowUnminimise(ctx)
+			wailsruntime.WindowShow(ctx)
+		}
+	}()
+
 	// 后台恢复/扫描本地音乐库，不阻塞启动。
 	go func() {
 		a.mu.Lock()
@@ -149,6 +159,7 @@ func parseNum(s string) int64 {
 }
 
 // DomReady 在前端 DOM 就绪后触发。
+// DomReady 前端就绪（Wails 在个别机器上会丢失该回调，见 Startup 里的兜底显示）。
 func (a *App) DomReady(ctx context.Context) {}
 
 // Shutdown 退出前保存状态、移除托盘、释放单实例锁。

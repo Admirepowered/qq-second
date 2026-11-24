@@ -32,6 +32,8 @@ export interface PlaylistInfo {
   songCount?: number;
   desc?: string;
   updateTime?: string;
+  /** 歌单目录 ID：写入歌单接口需要（"我喜欢" 为 201）。 */
+  dirId?: number;
 }
 
 export interface PlaylistDetail {

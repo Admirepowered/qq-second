@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"io"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -227,40 +228,14 @@ type lrcLine struct {
 	text   string
 }
 
-// isQRCBody 判断文本是否为 QRC 逐字格式（行首 [start,end]）。
+// isQRCBody 判断文本是否为 QRC 逐字格式（行首 [start,dur]）。
 func isQRCBody(text string) bool {
 	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "[") {
-			continue
-		}
-		closeIdx := strings.Index(line, "]")
-		if closeIdx < 0 {
-			continue
-		}
-		inner := line[1:closeIdx]
-		if strings.Contains(inner, ",") {
-			parts := strings.SplitN(inner, ",", 2)
-			startOK := isAllDigits(strings.TrimSpace(parts[0]))
-			endOK := isAllDigits(strings.TrimSpace(parts[1]))
-			if startOK && endOK {
-				return true
-			}
+		if qrcLineHeader.MatchString(strings.TrimSpace(line)) {
+			return true
 		}
 	}
 	return false
-}
-
-func isAllDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // parseLRCRaw 解析 LRC 文本为时间/文本对。
@@ -349,8 +324,23 @@ func lrcTimeToMs(tag string) (int, bool) {
 }
 
 // ---- QRC 解析 ----
+//
+// QRC 的真实字段语义（以线上响应校准）：
+//
+//	[行开始ms,行时长ms]词(词开始ms,词时长ms)词(...)…
+//
+// 行与词的第二个数字都是「时长」而不是「结束时间」；词的时间是相对整首歌的绝对
+// 时间。历史实现把行第二值当结束、把词括号内的第一个数字当「时长×10」，导致
+// 逐字填充错位（表现为当前句只亮很短一段）。这里按真实语义解析。
 
-// parseQRC 解析 [start,end]word(dur_cs)... 格式。
+// qrcLineHeader 匹配行头 [start,dur]。
+var qrcLineHeader = regexp.MustCompile(`^\[(\d+),(\d+)\]`)
+
+// qrcWordTag 匹配词标记 (start,dur)。歌词正文里的字面括号（如 "Moon (I)"）
+// 不会命中，因为括号后必须紧跟「数字,数字」。
+var qrcWordTag = regexp.MustCompile(`\((\d+),(\d+)\)`)
+
+// parseQRC 解析 [start,dur]word(start,dur)… 格式。
 func parseQRC(text string) []LyricLine {
 	var lines []LyricLine
 	offset := 0
@@ -365,65 +355,59 @@ func parseQRC(text string) []LyricLine {
 			}
 			continue
 		}
-		if !strings.HasPrefix(item, "[") {
+		m := qrcLineHeader.FindStringSubmatchIndex(item)
+		if m == nil {
+			// [ti:]/[ar:]/[al:] 等元数据行跳过
 			continue
 		}
-		closeIdx := strings.Index(item, "]")
-		if closeIdx < 0 {
-			continue
-		}
-		rangePart := item[1:closeIdx]
-		parts := strings.Split(rangePart, ",")
-		start, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
-		end := start
-		if len(parts) > 1 {
-			end, _ = strconv.Atoi(strings.TrimSpace(parts[1]))
-		}
-		body := item[closeIdx+1:]
+		start, _ := strconv.Atoi(item[m[2]:m[3]])
+		dur, _ := strconv.Atoi(item[m[4]:m[5]])
+		body := item[m[1]:]
 
-		var words []LyricWord
-		pos := 0
-		cursorMs := start
-		var lineText strings.Builder
-		for pos < len(body) {
-			open := strings.Index(body[pos:], "(")
-			if open < 0 {
-				break
-			}
-			open += pos
-			word := body[pos:open]
-			closeP := strings.Index(body[open:], ")")
-			if closeP < 0 {
-				break
-			}
-			closeP += open
-			inner := body[open+1 : closeP]
-			durStr := strings.TrimSpace(inner)
-			if comma := strings.Index(durStr, ","); comma >= 0 {
-				durStr = strings.TrimSpace(durStr[:comma])
-			}
-			dur, _ := strconv.Atoi(durStr)
-			durMs := dur * 10
-			if word != "" {
-				lineText.WriteString(word)
-				words = append(words, LyricWord{
-					StartMs: cursorMs - offset,
-					EndMs:   cursorMs - offset + durMs,
-					Text:    word,
-				})
-			}
-			cursorMs += durMs
-			pos = closeP + 1
+		words, lineText := parseQRCWords(body, offset)
+		if lineText == "" {
+			continue
 		}
-		if lineText.Len() > 0 {
-			lines = append(lines, LyricLine{
-				StartMs: start - offset,
-				EndMs:   end - offset,
-				Text:    lineText.String(),
-				Words:   words,
-			})
+		line := LyricLine{
+			StartMs: start - offset,
+			EndMs:   start - offset + dur,
+			Text:    lineText,
+			Words:   words,
 		}
+		lines = append(lines, line)
 	}
 	sort.SliceStable(lines, func(i, j int) bool { return lines[i].StartMs < lines[j].StartMs })
 	return lines
+}
+
+// parseQRCWords 解析一行的逐字内容，返回词列表与纯文本。
+func parseQRCWords(body string, offset int) ([]LyricWord, string) {
+	matches := qrcWordTag.FindAllStringSubmatchIndex(body, -1)
+	if len(matches) == 0 {
+		// 没有逐字标记：整行作为纯文本
+		return nil, strings.TrimSpace(body)
+	}
+	words := make([]LyricWord, 0, len(matches))
+	var text strings.Builder
+	prev := 0
+	for _, m := range matches {
+		chunk := body[prev:m[0]]
+		prev = m[1]
+		wordStart, _ := strconv.Atoi(body[m[2]:m[3]])
+		wordDur, _ := strconv.Atoi(body[m[4]:m[5]])
+		if chunk == "" {
+			continue
+		}
+		text.WriteString(chunk)
+		words = append(words, LyricWord{
+			StartMs: wordStart - offset,
+			EndMs:   wordStart - offset + wordDur,
+			Text:    chunk,
+		})
+	}
+	// 末尾可能还有不属于任何词标记的残留文本
+	if tail := body[prev:]; strings.TrimSpace(tail) != "" {
+		text.WriteString(tail)
+	}
+	return words, text.String()
 }

@@ -10,11 +10,13 @@ import { LyricsPanel } from './components/LyricsPanel';
 import { HomePage } from './pages/HomePage';
 import { SearchPage } from './pages/SearchPage';
 import { ChartsPage, ChartDetailPage } from './pages/ChartsPage';
+import { IdentifyPage } from './pages/IdentifyPage';
 import { PlaylistPage, AlbumPage, ArtistPage } from './pages/DetailPages';
 import { AccountPage } from './pages/AccountPage';
 import { LocalMusicPage } from './pages/LocalMusicPage';
 import { CachedSongsPage } from './pages/CachedSongsPage';
 import { ContextMenuHost } from './components/ContextMenu';
+import { ToastHost } from './components/ToastHost';
 import { SettingsPage } from './pages/SettingsPage';
 import { useNavStore, AppRoute } from './store/nav';
 import { usePrefsStore } from './store/prefs';
@@ -26,6 +28,7 @@ const TITLES: Record<AppRoute['page'], string> = {
   home: '发现',
   search: '搜索',
   charts: '排行榜',
+  identify: '听歌识曲',
   playlist: '歌单',
   chart: '排行榜',
   album: '专辑',
@@ -100,6 +103,9 @@ export default function App() {
     case 'charts':
       page = <ChartsPage />;
       break;
+    case 'identify':
+      page = <IdentifyPage />;
+      break;
     case 'chart':
       page = <ChartDetailPage id={route.id} name={route.name} />;
       break;
@@ -145,6 +151,7 @@ export default function App() {
       <QueuePanel />
       <LyricsPanel />
       <ContextMenuHost />
+      <ToastHost />
     </>
   );
 }

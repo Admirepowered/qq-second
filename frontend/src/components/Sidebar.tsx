@@ -1,6 +1,6 @@
 // 侧栏导航。
 
-import { Database, Disc3, Heart, Home, ListMusic, Search as SearchIcon, Settings, TrendingUp } from 'lucide-react';
+import { AudioLines, Database, Disc3, Heart, Home, ListMusic, Search as SearchIcon, Settings, TrendingUp } from 'lucide-react';
 import { useNavStore } from '../store/nav';
 import { usePlayerStore } from '../store/player';
 import { usePrefsStore } from '../store/prefs';
@@ -36,6 +36,9 @@ export function Sidebar() {
       </button>
       <button className={item(route.page === 'charts')} onClick={() => go({ page: 'charts' })}>
         <TrendingUp size={17} /> 排行榜
+      </button>
+      <button className={item(route.page === 'identify')} onClick={() => go({ page: 'identify' })}>
+        <AudioLines size={17} /> 听歌识曲
       </button>
 
       <div className="nav-section-label">你的音乐</div>

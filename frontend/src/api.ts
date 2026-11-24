@@ -26,6 +26,8 @@ export const {
   QQUserAccount,
   QQListFavoriteMids,
   QQSetFavorite,
+  QQMyPlaylists,
+  IdentifyAudio,
   GetCredential,
   ListCachedSongs,
   ChangeCacheDir,
@@ -56,6 +58,11 @@ export function QQResolvePlayBinding(track: Track, preferredQuality: string) {
 
 export function SaveSession(session: SessionData) {
   return App_.SaveSession(session as never);
+}
+
+// 把歌曲加入指定歌单（dirId + tid）
+export function QQAddToPlaylist(track: Track, playlistID: string, dirID: number) {
+  return App_.QQAddToPlaylist(track as never, playlistID, dirID);
 }
 
 export { DownloadUpdate, ApplyUpdate } from '../wailsjs/go/app/App';

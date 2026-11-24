@@ -386,8 +386,10 @@
   position: fixed;
   z-index: 100;
   min-width: 180px;
-  background: var(--panel-glass-strong);
-  backdrop-filter: var(--panel-blur);
+  max-height: 70vh;
+  overflow-y: auto;
+  /* 规则：不使用 backdrop-filter（毛玻璃），菜单用不透明底色保证可读 */
+  background: var(--panel-solid-strong);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
   padding: 5px;
@@ -415,4 +417,35 @@
   height: 1px;
   background: var(--panel-border);
   margin: 4px 6px;
+}
+
+/* toast：操作即时反馈（收藏到歌单 / 识曲失败等） */
+.toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  z-index: 300;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(20, 22, 26, 0.94);
+  color: #fff;
+  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: toast-in 0.18s ease-out;
+}
+.toast-host.error {
+  background: rgba(150, 36, 36, 0.96);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }

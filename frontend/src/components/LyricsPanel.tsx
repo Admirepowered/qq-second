@@ -4,7 +4,7 @@ import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
 import { usePlayerStore } from '../store/player';
 import { QQLyrics } from '../api';
-import { LyricDocument, fmtDuration } from '../types';
+import { LyricDocument, LyricLine, fmtDuration } from '../types';
 
 export function LyricsPanel() {
   const { lyricsOpen, current, positionMs, durationMs, seek, setLyricsOpen, playbackState } =
@@ -126,8 +126,8 @@ export function LyricsPanel() {
                 className={`lyrics-line${i === activeIndex ? ' current' : ''}`}
                 onClick={() => seek(Math.max(0, line.startMs))}
               >
-                {i === activeIndex && doc?.syncMode === 'word' && line.words ? (
-                  <WordFillLine text={line.text} words={line.words} positionMs={positionMs} />
+                {i === activeIndex && doc?.syncMode === 'word' && wordFillActive(line, positionMs) ? (
+                  <WordFillLine text={line.text} words={line.words!} positionMs={positionMs} />
                 ) : (
                   <span>{line.text}</span>
                 )}
@@ -172,8 +172,9 @@ function WordFillLine({ text, words, positionMs }: { text: string; words: { star
     <span>
       {words.map((w, i) => {
         let fill = 0;
+        const dur = w.endMs - w.startMs;
         if (positionMs >= w.endMs) fill = 100;
-        else if (positionMs > w.startMs) fill = ((positionMs - w.startMs) / Math.max(1, w.endMs - w.startMs)) * 100;
+        else if (positionMs > w.startMs) fill = dur > 0 ? ((positionMs - w.startMs) / dur) * 100 : 100;
         return (
           <span key={i} className="word-fill" style={{ '--fill': `${fill}%` } as CSSProperties}>
             {w.text}
@@ -182,4 +183,21 @@ function WordFillLine({ text, words, positionMs }: { text: string; words: { star
       })}
     </span>
   );
+}
+
+// 本行最后一个词的结束时间：超过它以后整句直接显示为已高亮纯文本，
+// 避免「逐字数据提前结束 → 整句看起来一直没亮」。
+function lastWordEnd(line: LyricLine): number {
+  const words = line.words;
+  if (!words || words.length === 0) return line.endMs;
+  return words[words.length - 1].endMs;
+}
+
+// 逐字渐变只在「句子正在播放」的区间启用；句首前/句末后整句保持高亮，
+// 保证一句话从头到尾都是亮的（历史问题：只在开头约 1s 内可见高亮）。
+function wordFillActive(line: LyricLine, positionMs: number): boolean {
+  const words = line.words;
+  if (!words || words.length === 0) return false;
+  if (positionMs < words[0].startMs) return false;
+  return positionMs < lastWordEnd(line);
 }

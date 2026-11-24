@@ -141,6 +141,17 @@
   color: transparent;
 }
 
+/* 当前句：未唱到的部分也比非当前行亮，保证整句在播放期间都"亮着" */
+.lyrics-line.current .word-fill {
+  background: linear-gradient(
+    to right,
+    #ffffff var(--fill, 0%),
+    rgba(255, 255, 255, 0.55) var(--fill, 0%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
 .lyrics-bottombar {
   position: relative;
   z-index: 2;

@@ -3,6 +3,7 @@ package app
 // QQ 音乐绑定方法（前端通过 wailsjs 调用）。
 
 import (
+	"errors"
 	"time"
 
 	"qqsecond/internal/app/qqmusic"
@@ -150,4 +151,19 @@ func (a *App) QQSetFavorite(track Track, fav bool) error {
 		return a.qq.AddFavorite(track.Mid)
 	}
 	return a.qq.DelFavorite(track.Mid)
+}
+
+// QQMyPlaylists 我创建的歌单（含"我喜欢"，不含歌曲列表）。
+func (a *App) QQMyPlaylists() ([]qqmusic.PlaylistInfo, error) {
+	a.ensureQQ()
+	return a.qq.MyPlaylists()
+}
+
+// QQAddToPlaylist 把歌曲加入指定歌单（需登录）。
+func (a *App) QQAddToPlaylist(track Track, playlistID string, dirID int) error {
+	a.ensureQQ()
+	if track.Mid == "" {
+		return errors.New("曲目缺少 mid，无法加入歌单")
+	}
+	return a.qq.AddSongToPlaylist(track.Mid, playlistID, dirID)
 }

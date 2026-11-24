@@ -14,6 +14,21 @@ type UserAccount struct {
 	MyPlaylists []PlaylistInfo `json:"myPlaylists"`
 }
 
+// MyPlaylists 只拉「我创建的歌单」（含"我喜欢"），不含歌曲，供收藏选择器等轻量场景使用。
+func (c *Client) MyPlaylists() ([]PlaylistInfo, error) {
+	cred := c.Credential()
+	if cred.StrMusicID == "" || cred.MusicKey == "" {
+		return []PlaylistInfo{}, ErrNotLoggedIn
+	}
+	data, err := c.cgiAndroid("music.musicasset.PlaylistBaseRead", "GetPlaylistByUin", map[string]interface{}{
+		"uin": cred.StrMusicID,
+	})
+	if err != nil {
+		return []PlaylistInfo{}, err
+	}
+	return parseUserPlaylists(data), nil
+}
+
 // GetUserAccount 拉取账号歌单与"我喜欢"歌曲。
 func (c *Client) GetUserAccount() (*UserAccount, error) {
 	cred := c.Credential()

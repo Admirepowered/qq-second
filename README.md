@@ -25,10 +25,12 @@ QQ Second 是一个非官方 QQ 音乐桌面客户端，同时内置本地音乐
 - 搜索（歌曲 / 歌手 / 专辑 / 歌单）、首页推荐歌单 + 新歌速递 + 八大榜单
 - 歌单 / 专辑 / 歌手详情页，一键入队连播
 - 播放地址解析：`vkey.GetVkey/UrlGetVkey` 明文流，音质自动降级链（FLAC → 320k → 128k → AAC）
-- 逐字歌词：QRC（3DES + zlib 解密）逐字渐变填充，翻译 / 罗马音，点击行 seek
+- 逐字歌词：QRC（3DES + zlib 解密）逐字渐变填充，整句播放期间保持高亮，翻译 / 罗马音，点击行 seek
 - **扫码登录**：`ptqrshow → ptqrlogin → check_sig → oauth authorize → QQLogin`，凭据本地持久化；
   登录后可播放账号有权收听的更高音质（实测可解锁 FLAC 无损）
 - **我的音乐**：收藏的歌曲（dirid=201）、我创建的歌单、收藏的歌单
+- **收藏到指定歌单**：右键任意歌曲 → 收藏到歌单…（"我喜欢"或任一自建歌单），带成功/失败提示
+- **听歌识曲**：录 8 秒环境音乐（或选本地音频文件）→ Shazam 指纹识别 → 自动在 QQ 音乐里找到并播放
 
 ### 本地音乐
 
@@ -46,7 +48,7 @@ QQ Second 是一个非官方 QQ 音乐桌面客户端，同时内置本地音乐
 
 - 深色 / 浅色 / 跟随系统，8 种主题色预设 + 自定义主色
 - 背景四模式：默认 / 封面（当前曲） / 自定义图片 / 纯色
-- 面板不透明度滑杆（0–100%）驱动全窗口毛玻璃底色，背景在整个窗口可见
+- 面板不透明度滑杆（0–100%）驱动半透明底色（不使用 backdrop-filter），背景在整个窗口可见
 - 无边框窗口 + 自绘标题栏 + 托盘（零依赖 Win32 Shell_NotifyIcon）
 
 ### 通用
@@ -76,8 +78,7 @@ go run ./cmd/icon  # 重新生成品牌图标（build/appicon.png + build/window
 ```
 
 发版：GitHub Actions → Build & Release → 勾选 release（可选 prerelease）。
-版本号从 `internal/version/version.go` 读取；**发布成功后 CI 自动将小版本号 +1 并提交**，
-中间版本号变化请直接修改该文件。
+版本号从 `internal/version/version.go` 读取；发版前**手动**改版本号并提交，CI 不做自动 bump。
 
 ## 架构
 
@@ -90,6 +91,7 @@ Go 后端 (Wails v2, 单 App 绑定)
    │              Android 平台流水线：随机设备 → QIMEI(RSA+AES) → GetSession
    │              zzc 签名（musics.fcg 兼容）、多通道 GitHub 访问
    ├─ 本地音乐     dhowden/tag + 自算时长
+   ├─ 听歌识曲     Shazam 指纹签名（FFT + 峰值）→ amp.shazam.com → QQ 搜索映射
    ├─ AssetServer  /audio/local（Range）+ /audio/stream（签名 URL 代理）
    ├─ 托盘         自实现 Win32 Shell_NotifyIcon（无 cgo / 第三方依赖）
    └─ 设置/会话    UserConfigDir JSON 持久化
@@ -104,6 +106,7 @@ QQ 请求协议按公开行为独立实现（设备指纹、QIMEI 申请、zzc �
 - 登录凭据仅保存在本机 `%APPDATA%/qq-second/store.json`，不上传任何服务器
 - 播放签名 URL 保留在后端，前端只拿到内部 token
 - 背景图 / 封面 / 音频缓存在 `%APPDATA%/qq-second/` 下，可在文件系统直接清理
+- 听歌识曲只上传音频指纹（不含可还原的原始录音），识别请求走设置里的手动代理（如已配置）
 
 ## License
 

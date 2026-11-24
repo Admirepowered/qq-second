@@ -6,11 +6,11 @@ export type AppRoute =
   | { page: 'home' }
   | { page: 'search'; query?: string }
   | { page: 'charts' }
+  | { page: 'identify' }
   | { page: 'playlist'; id: string }
   | { page: 'chart'; id: number; name: string }
   | { page: 'album'; id: string }
   | { page: 'artist'; id: string }
-  | { page: 'account' }
   | { page: 'account' }
   | { page: 'cache' }
   | { page: 'local' }
