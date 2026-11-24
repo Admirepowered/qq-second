@@ -28,6 +28,7 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
 | `internal/app/mediacache.go` | QQ 音频磁盘缓存（边播边落盘，512MB LRU；命中后本地 Range 供给） |
 | `internal/app/qqmusic/favor.go` | 歌曲收藏（music.musicfavor.SongFavor Add/DelFavSong，需数字 songId + 登录）；`AddSongToPlaylist` 加入自建歌单（dirId + tid） |
 | `internal/app/recognize/` | 听歌识曲：Shazam 指纹签名（2048 点 FFT + 峰值扩散/打包，含单测）+ 识别请求（复用设置里的手动代理） |
+| `internal/app/audiocap/` | 系统声音采集：Windows WASAPI 环回（COM 手写调用，非 Windows 返回不支持） |
 | `internal/app/identify.go` | `IdentifyAudio` 绑定：PCM 重采样 → 识别 → 用「标题+歌手」映射 QQ 曲库 |
 | `internal/app/background.go` | 背景图导入/列表/删除/dataURL（源自 Pulse 移植） |
 | `internal/app/settings.go` | Settings 全量结构 + clamp + store.json 持久化 |
@@ -97,6 +98,10 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
 20. **听歌识曲的网络**：Shazam 接口在国内常直连超时，识别请求复用
     `Settings.UpdateProxy`（手动代理）——与更新检查一致，**不做自动探测**。
     签名算法移植自公开实现，改动后跑 `go test ./internal/app/recognize/`。
+20b. **系统声音采集（Windows）**：`audiocap.CaptureSystem` 用 WASAPI 环回抓默认渲染
+    设备，输出统一重采样到 16k 单声道。读包必须**一次把可读包全部取完**再 sleep，
+    每包都 sleep 10ms 会跟不上采集速度 → 丢帧 → 音频被"加速"（音高整体偏高，
+    识曲必失败）。用 `AUDIOCAP_DEBUG=1` 可打印混音格式与 effectiveRate（应≈48000）。
 21. **WebView2 麦克风**：`getUserMedia` 在 Wails 的 WebView2 里实测可直接用（无需
     `--use-fake-ui-for-media-stream`，该开关反而会让 WebView2 环境创建失败/窗口不显示，
     已移除）。若某些机器权限被拒，识别页的"选择音频文件"是兜底路径。
@@ -122,7 +127,8 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
 
 功能走查：搜索→播放；榜单/歌单连播；逐字歌词 + 翻译（整句高亮、行间不早退）；本地文件夹→播放→seek；
 背景四模式 + 透明度滑杆；深浅色 + 主色；托盘菜单/双击；自启开关往返；更新检查；
-右键「收藏到歌单…」→ 选「我喜欢」/自建歌单 → 心形与歌单同步；听歌识曲（录音 8s / 选音频文件）。
+右键「收藏到歌单…」→ 选「我喜欢」/自建歌单 → 心形与歌单同步；听歌识曲（麦克风 / 选文件）；
+识别页「识别电脑声音」→ 系统里随便放一首歌 → 应识别出曲名并列出 QQ 音乐候选。
 
 ## 已知坑
 

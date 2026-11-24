@@ -28,6 +28,7 @@ export const {
   QQSetFavorite,
   QQMyPlaylists,
   IdentifyAudio,
+  IdentifySystemAudio,
   GetCredential,
   ListCachedSongs,
   ChangeCacheDir,

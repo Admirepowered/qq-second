@@ -1,12 +1,15 @@
 package app
 
-// 听歌识曲绑定：前端录音/选文件得到 PCM → 生成 Shazam 指纹 → 识别 → 映射 QQ 曲库。
+// 听歌识曲绑定：
+//   - IdentifyAudio：前端录音/选文件得到 PCM → 识别
+//   - IdentifySystemAudio：直接采集系统正在播放的声音（WASAPI 环回）→ 识别
 
 import (
 	"context"
 	"strings"
 	"time"
 
+	"qqsecond/internal/app/audiocap"
 	"qqsecond/internal/app/qqmusic"
 	"qqsecond/internal/app/recognize"
 )
@@ -29,6 +32,25 @@ func (a *App) IdentifyAudio(pcmBase64 string, sampleRate int) (*IdentifyResult, 
 	if err != nil {
 		return nil, err
 	}
+	return a.identifyPCM(pcm, sampleRate)
+}
+
+// IdentifySystemAudio 采集电脑当前正在播放的声音（不经过麦克风）并识别。
+func (a *App) IdentifySystemAudio(seconds int) (*IdentifyResult, error) {
+	if seconds <= 0 || seconds > 20 {
+		seconds = 8
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds+10)*time.Second)
+	defer cancel()
+	pcm, err := audiocap.CaptureSystem(ctx, seconds)
+	if err != nil {
+		return nil, err
+	}
+	return a.identifyPCM(pcm, recognize.SampleRate)
+}
+
+// identifyPCM 是两条识别入口的公共实现。
+func (a *App) identifyPCM(pcm []int16, sampleRate int) (*IdentifyResult, error) {
 	if sampleRate <= 0 {
 		sampleRate = recognize.SampleRate
 	}

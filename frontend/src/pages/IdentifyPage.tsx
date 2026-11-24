@@ -1,8 +1,8 @@
-// 听歌识曲页：麦克风录 8 秒（或选本地音频文件）→ 后端 Shazam 指纹识别 → QQ 曲库候选。
+// 听歌识曲页：麦克风录音 / 直接采集电脑声音 / 选本地音频文件 → Shazam 指纹识别 → QQ 曲库候选。
 
 import { useEffect, useRef, useState } from 'react';
-import { AudioLines, Loader2, Mic, Square, Upload } from 'lucide-react';
-import { IdentifyAudio, SendLog } from '../api';
+import { AudioLines, Loader2, Mic, Speaker, Square, Upload } from 'lucide-react';
+import { IdentifyAudio, IdentifySystemAudio, SendLog } from '../api';
 import { Track } from '../types';
 import { usePlayerStore } from '../store/player';
 import { toast } from '../store/toast';
@@ -18,9 +18,10 @@ interface IdentifyResult {
   songs: Track[];
 }
 
-type Phase = 'idle' | 'recording' | 'identifying' | 'done';
+type Phase = 'idle' | 'recording' | 'capturing' | 'identifying' | 'done';
 
 const RECORD_SECONDS = 8;
+const CAPTURE_SECONDS = 8;
 
 export function IdentifyPage() {
   const playTracks = usePlayerStore((s) => s.playTracks);
@@ -86,6 +87,34 @@ export function IdentifyPage() {
     setProgress(0);
   };
 
+  // 直接采集电脑正在播放的声音（WASAPI 环回，不经过麦克风）
+  const startSystemIdentify = async () => {
+    setResult(null);
+    setError('');
+    setProgress(0);
+    setPhase('capturing');
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      setProgress(Math.min(0.95, (Date.now() - started) / (CAPTURE_SECONDS * 1000)));
+    }, 120);
+    try {
+      void SendLog('info', 'identify: 开始采集电脑声音');
+      const res = (await IdentifySystemAudio(CAPTURE_SECONDS)) as unknown as IdentifyResult;
+      void SendLog('info', `identify: 电脑声音识别完成 matched=${res.matched} title=${res.title ?? ''}`);
+      setResult(res);
+      setPhase('done');
+      if (!res.matched) toast.error(res.message || '没有识别到这首歌');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      void SendLog('error', 'identify: 电脑声音采集/识别失败 ' + msg);
+      setError(msg.includes('不支持') ? msg : `采集电脑声音失败：${msg}`);
+      toast.error('采集电脑声音失败');
+      setPhase('idle');
+    } finally {
+      window.clearInterval(timer);
+    }
+  };
+
   const onPickFile = async (file: File | undefined) => {
     if (!file) return;
     setResult(null);
@@ -101,7 +130,8 @@ export function IdentifyPage() {
   };
 
   const recording = phase === 'recording';
-  const busy = phase === 'identifying';
+  const capturing = phase === 'capturing';
+  const busy = phase === 'identifying' || capturing;
   const pct = Math.round(progress * 100);
 
   return (
@@ -110,7 +140,7 @@ export function IdentifyPage() {
         <div className="page-header-info">
           <div className="page-header-title">听歌识曲</div>
           <div className="page-header-sub">
-            录 {RECORD_SECONDS} 秒正在播放的音乐，识别出歌名后直接在 QQ 音乐里播放
+            用麦克风录 {RECORD_SECONDS} 秒、或直接采集电脑正在播放的声音（Windows），识别出歌名后可在 QQ 音乐里播放
           </div>
         </div>
       </div>
@@ -133,20 +163,28 @@ export function IdentifyPage() {
           </button>
 
           <div className="identify-hint">
-            {busy
-              ? '正在识别…'
-              : recording
-                ? `正在聆听… ${pct}%（点一下停止）`
-                : '点一下开始录音'}
+            {capturing
+              ? `正在采集电脑声音… ${pct}%`
+              : busy
+                ? '正在识别…'
+                : recording
+                  ? `正在聆听… ${pct}%（点一下停止）`
+                  : '点一下开始录音，或直接识别电脑正在播放的声音'}
           </div>
 
-          <div className={`identify-progress${recording ? ' active' : ''}`}>
-            <div className="identify-progress-bar" style={{ width: `${recording ? pct : 0}%` }} />
+          <div className={`identify-progress${recording || capturing ? ' active' : ''}`}>
+            <div
+              className="identify-progress-bar"
+              style={{ width: `${recording || capturing ? pct : 0}%` }}
+            />
           </div>
 
           <div className="identify-actions">
+            <button className="btn" disabled={busy || recording} onClick={() => void startSystemIdentify()}>
+              <Speaker size={14} /> 识别电脑声音
+            </button>
             <button className="btn" disabled={busy || recording} onClick={() => fileRef.current?.click()}>
-              <Upload size={14} /> 选择音频文件识别
+              <Upload size={14} /> 选择音频文件
             </button>
             <input
               ref={fileRef}
