@@ -261,10 +261,13 @@ export function fmtDuration(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// artworkSmall 列表场景用小尺寸封面（150px），降低解码纹理内存占用
+// artworkSmall 列表场景用小尺寸封面（150px），降低解码纹理内存占用。
+// 顺手把 http 图片升级成 https：部分歌单封面来自 qpic.y.qq.com 且是 http，
+// 在 secure context 下会被当混合内容拦截（历史 bug：首页推荐歌单无封面）。
 export function artworkSmall(url?: string): string | undefined {
   if (!url) return url;
-  return url.replace('300x300', '150x150').replace('500x500', '150x150');
+  const fixed = url.startsWith('http://') ? 'https://' + url.slice('http://'.length) : url;
+  return fixed.replace('300x300', '150x150').replace('500x500', '150x150');
 }
 
 export function artistText(t: Track): string {

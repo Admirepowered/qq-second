@@ -476,6 +476,15 @@ func stringAt(m map[string]interface{}, key string) string {
 	return ""
 }
 
+// httpsURL 把 http 图片地址升级为 https（qpic.y.qq.com 等仍返回 http，
+// 在 secure context 下会被当混合内容拦截，表现为封面空白）。
+func httpsURL(u string) string {
+	if len(u) > 7 && u[:7] == "http://" {
+		return "https://" + u[7:]
+	}
+	return u
+}
+
 func numberAt(m map[string]interface{}, key string) (int64, bool) {
 	if m == nil {
 		return 0, false

@@ -48,12 +48,17 @@ func (c *Client) Search(kind string, query string, page int) (*SearchResult, err
 			if !ok {
 				continue
 			}
-			mid := stringAt(s, "mid")
-			name := stringAt(s, "name")
+			// 搜索接口用 singerMID/singerName/singerPic（不是 mid/name）
+			mid := firstField(s, "mid", "singerMID", "singer_mid")
+			name := firstField(s, "name", "singerName", "title")
 			if mid == "" {
 				continue
 			}
-			result.Artists = append(result.Artists, ArtistBrief{ID: mid, Name: name, Cover: singerArtworkURL(mid)})
+			cover := httpsURL(firstField(s, "singerPic", "pic", "cover"))
+			if cover == "" {
+				cover = singerArtworkURL(mid)
+			}
+			result.Artists = append(result.Artists, ArtistBrief{ID: mid, Name: stripEm(name), Cover: cover})
 		}
 	case "album":
 		for _, item := range arrayAt(body, "item_album") {
@@ -139,12 +144,35 @@ func (c *Client) Home() (*HomeFeed, error) {
 			if id == "" {
 				continue
 			}
-			cover := stringAt(basic, "pic_url")
+			// 封面是嵌套对象 basic.cover.{small_url,default_url,big_url,medium_url}，
+			// 不是 pic_url（历史 bug：首页推荐歌单全部没有封面）
+			cover := ""
+			if cv, ok := dig(basic, "cover"); ok {
+				for _, key := range []string{"small_url", "default_url", "big_url", "medium_url", "pic_url2"} {
+					if s := stringAt(cv, key); s != "" {
+						cover = s
+						break
+					}
+				}
+			}
 			if cover == "" {
-				cover = stringAt(basic, "picurl")
+				cover = stringAt(basic, "pic_url")
+			}
+			creator := ""
+			if cr, ok := dig(basic, "creator"); ok {
+				creator = stringAt(cr, "nick")
+			}
+			songCount := 0
+			if n, ok := numberAt(basic, "song_cnt"); ok {
+				songCount = int(n)
 			}
 			feed.Playlists = append(feed.Playlists, PlaylistInfo{
-				ID: id, Title: stringAt(basic, "title"), Cover: cover,
+				ID:        id,
+				Title:     stringAt(basic, "title"),
+				Cover:     httpsURL(cover),
+				Creator:   creator,
+				SongCount: songCount,
+				Desc:      stringAt(basic, "desc"),
 			})
 		}
 	} else {
@@ -195,7 +223,7 @@ func (c *Client) ChartDetail(topID int) (*PlaylistDetail, error) {
 		detail.Info = PlaylistInfo{
 			ID:         "top:" + strconv.Itoa(topID),
 			Title:      firstField(node, "title", "musichallTitle"),
-			Cover:      firstField(node, "frontPicUrl", "headPicUrl", "mbFrontPicUrl", "mbHeadPicUrl"),
+			Cover:      httpsURL(firstField(node, "frontPicUrl", "headPicUrl", "mbFrontPicUrl", "mbHeadPicUrl")),
 			UpdateTime: stringAt(node, "updateTime"),
 			Desc:       stringAt(node, "intro"),
 		}
@@ -230,10 +258,22 @@ func (c *Client) PlaylistDetail(disstid string, begin int) (*PlaylistDetail, err
 		if cr, ok := dig(dirinfo, "creator"); ok {
 			creator = stringAt(cr, "nick")
 		}
+		if creator == "" {
+			creator = stringAt(dirinfo, "host_nick")
+		}
+		// 字段名随平台信封而变：Android 是 title/picurl，web 是 dirName/picUrl
+		cover := firstField(dirinfo, "picUrl", "picurl", "picurl2", "layer_url")
+		songCount := 0
+		if n, ok := numberAt(dirinfo, "songnum"); ok {
+			songCount = int(n)
+		}
 		detail.Info = PlaylistInfo{
-			ID: disstid, Title: stringAt(dirinfo, "dirName"),
-			Cover: stringAt(dirinfo, "picUrl"), Creator: creator,
-			Desc: stringAt(dirinfo, "desc"),
+			ID:        disstid,
+			Title:     firstField(dirinfo, "dirName", "title", "name"),
+			Cover:     httpsURL(cover),
+			Creator:   creator,
+			Desc:      stringAt(dirinfo, "desc"),
+			SongCount: songCount,
 		}
 	}
 	if list := arrayAt(data, "songlist"); list != nil {
@@ -264,19 +304,36 @@ func (c *Client) AlbumDetail(albumMid string) (*AlbumDetail, error) {
 		}
 	}
 	detail := &AlbumDetail{ID: albumMid, Cover: artworkURL(albumMid, 500), Tracks: []Track{}, Artists: []NameRef{}}
-	if info, ok := dig(data, "getAlbumInfo", "albumInfo"); ok {
-		detail.Title = stringAt(info, "albumName")
-		detail.Company = stringAt(info, "company")
-		detail.Desc = stripEm(stringAt(info, "albumDesc"))
-		if release := stringAt(info, "releaseDate"); len(release) >= 4 {
+	// 当前接口返回 basicInfo / company / singer 三段，旧实现读的是 getAlbumInfo/albumInfo。
+	// 注意 dig 是「嵌套路径」语义，候选键必须逐个尝试。
+	info, ok := dig(data, "basicInfo")
+	if !ok {
+		if info, ok = dig(data, "getAlbumInfo"); !ok {
+			info, ok = dig(data, "albumInfo")
+		}
+	}
+	if ok {
+		detail.Title = firstField(info, "albumName", "name", "title")
+		detail.Desc = stripEm(firstField(info, "desc", "albumDesc"))
+		if release := firstField(info, "publishDate", "releaseDate", "timePublic"); len(release) >= 4 {
 			detail.ReleaseYear = release[:4]
 		}
-		for _, s := range arrayAt(info, "singers") {
-			singer, ok := s.(map[string]interface{})
+	}
+	if company, ok := dig(data, "company"); ok {
+		detail.Company = firstField(company, "name", "company")
+	} else {
+		detail.Company = stringAt(data, "company")
+	}
+	if singer, ok := dig(data, "singer"); ok {
+		for _, s := range arrayAt(singer, "singerList") {
+			item, ok := s.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			detail.Artists = append(detail.Artists, NameRef{Mid: stringAt(singer, "mid"), Name: stringAt(singer, "name")})
+			detail.Artists = append(detail.Artists, NameRef{
+				Mid:  firstField(item, "mid", "singerMid", "singer_mid"),
+				Name: firstField(item, "name", "singerName", "title"),
+			})
 		}
 	}
 	songs, err := c.AlbumSongList(albumMid)
@@ -311,9 +368,29 @@ func (c *Client) ArtistDetail(singerMid string) (*ArtistDetail, error) {
 		"singer_mids": []interface{}{singerMid},
 	})
 	if err == nil {
+		// 当前返回 singer_list[0]{ basic_info, ex_info, pic }；旧实现读 singer_detail
+		if list := arrayAt(data, "singer_list"); len(list) > 0 {
+			if item, ok := list[0].(map[string]interface{}); ok {
+				if basic, ok := dig(item, "basic_info"); ok {
+					detail.Name = firstField(basic, "name", "title")
+				}
+				if ex, ok := dig(item, "ex_info"); ok {
+					detail.Description = firstField(ex, "desc", "description")
+				}
+				if pic, ok := dig(item, "pic"); ok {
+					if u := httpsURL(firstField(pic, "pic", "big_black", "big_white")); u != "" {
+						detail.Cover = u
+					}
+				}
+			}
+		}
 		if info, ok := dig(data, "singer_detail"); ok {
-			detail.Name = stringAt(info, "name")
-			detail.Description = stringAt(info, "desc")
+			if detail.Name == "" {
+				detail.Name = stringAt(info, "name")
+			}
+			if detail.Description == "" {
+				detail.Description = stringAt(info, "desc")
+			}
 		}
 	}
 	if detail.Name == "" {

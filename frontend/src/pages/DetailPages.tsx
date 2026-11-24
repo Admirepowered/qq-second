@@ -36,7 +36,7 @@ export function PlaylistPage({ id }: { id: string }) {
     <div>
       <div className="page-header">
         {detail.info.cover ? (
-          <img className="page-header-cover" src={detail.info.cover} alt="" />
+          <img className="page-header-cover" src={artworkSmall(detail.info.cover)} alt="" />
         ) : (
           <div className="page-header-cover-ph">🎵</div>
         )}

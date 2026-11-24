@@ -140,7 +140,7 @@ func parseUserPlaylists(data map[string]interface{}) []PlaylistInfo {
 		} else if n, ok := numberAt(v, "song_count"); ok {
 			count = int(n)
 		}
-		cover := firstField(v, "picUrl", "bigpicUrl", "picurl", "logo")
+		cover := httpsURL(firstField(v, "picUrl", "bigpicUrl", "picurl", "logo"))
 		dirID, _ := numberAt(v, "dirId")
 		out = append(out, PlaylistInfo{
 			ID:        id,

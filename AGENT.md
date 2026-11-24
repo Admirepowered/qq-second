@@ -120,6 +120,7 @@ GOOS=linux go build ./internal/... ./cmd/...
 cd frontend && npx tsc --noEmit && npm run build
 go test ./internal/app/qqmusic/            # zzc 签名 + QRC 解密/解析测试向量
 go test ./internal/app/recognize/          # 识曲签名结构（magic/crc/TLV）+ 重采样
+QQ_LIVE=1 go test ./internal/app/qqmusic/ -run 'TestLiveChartMapping|TestLiveDetailParsing'  # 榜单/详情字段名回归
 QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveGuestFlow -v   # 真实链路冒烟
 wails dev -browser                          # 浏览器调试（绑定可用）
 wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build/bin/QQSecond.exe
@@ -151,6 +152,21 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   「标题和歌曲对不上」。当前正确映射：26 热歌 / 62 飙升 / 27 新歌 / 4 流行指数 /
   3 欧美 / 16 韩国 / 17 日本 / 59 香港地区；改动后跑
   `QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveChartMapping`。
+- **接口字段名随信封而变（最大的一类坑）**：同一个接口用 `cgiAndroid` 和
+  `cgiAnonymousWeb` 返回的字段名不一样，解析必须两个都兜住。已踩过的：
+  - 首页推荐歌单封面：`basic.cover.small_url`（不是 `pic_url`）→ 曾经整页无封面
+  - 歌单详情：`dirinfo.title/picurl`（Android）vs `dirName/picUrl`（web）
+  - 专辑详情：`basicInfo.albumName` + `company.name` + `singer.singerList`
+  - 歌手详情：`singer_list[0].basic_info.name` / `ex_info.desc` / `pic.pic`
+  - 专辑/歌手的曲目列表：列表项是包装对象 `{songInfo:{...}}`，要拆开再用
+  - 搜索歌手：`singerMID/singerName/singerPic`；搜索专辑：`albummid/name/pic`
+  改动这些解析后跑
+  `QQ_LIVE=1 go test ./internal/app/qqmusic/ -run 'TestLiveChartMapping|TestLiveDetailParsing'`。
+- **`dig()` 是嵌套路径语义**：`dig(data, "a", "b")` 取 `data.a.b`，不是"候选键"。
+  想按候选键取节点必须逐个调用，历史 bug：`dig(data,"basicInfo","getAlbumInfo","albumInfo")`
+  永远取不到 → 专辑标题为空。
+- **封面 URL 可能是 http**（如 `qpic.y.qq.com`）：secure context 下会被当混合内容
+  拦截，表现为封面空白。Go 侧统一走 `httpsURL()`，前端 `artworkSmall()` 也会升级。
 - **麦克风录不到声音**：先确认识别页的提示文案有没有出现"正在聆听… N%"；前端会把
   录音/识别结果写进应用日志（`identify:` 前缀），失败原因可直接看日志。
 - **启动后看不到窗口（进程和前端日志都正常）**：WebView2 首帧就绪回调偶发丢失，

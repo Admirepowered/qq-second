@@ -173,12 +173,19 @@ func normalizeSong(raw map[string]interface{}) (Track, bool) {
 }
 
 // normalizeSongList 归一化歌曲数组。
+// 部分接口的列表项是包装对象（{listenCount, songInfo:{...}}，专辑/歌手曲目列表
+// 就是这样），这里统一拆开。
 func normalizeSongList(list []interface{}) []Track {
 	tracks := make([]Track, 0, len(list))
 	for _, item := range list {
 		song, ok := item.(map[string]interface{})
 		if !ok {
 			continue
+		}
+		if stringAt(song, "mid") == "" && stringAt(song, "title") == "" {
+			if inner, ok := dig(song, "songInfo"); ok {
+				song = inner
+			}
 		}
 		if t, ok := normalizeSong(song); ok {
 			tracks = append(tracks, t)
@@ -263,25 +270,22 @@ type ChartInfo struct {
 }
 
 func albumBriefFrom(raw map[string]interface{}) (AlbumBrief, bool) {
-	id := stringAt(raw, "mid")
-	if id == "" {
-		id = stringAt(raw, "albumMid")
-	}
+	// 字段名随接口而变：搜索结果 item_album 用 albummid/name/pic，歌手页用 albumMid/albumName
+	id := firstField(raw, "mid", "albumMid", "albummid")
 	if id == "" {
 		return AlbumBrief{}, false
 	}
-	title := stringAt(raw, "name")
-	if title == "" {
-		title = stringAt(raw, "title")
-		if title == "" {
-			title = stringAt(raw, "albumName")
-		}
+	title := firstField(raw, "name", "title", "albumName")
+	brief := AlbumBrief{ID: id, Title: stripEm(title), Cover: artworkURL(id, 300)}
+	if cover := httpsURL(firstField(raw, "pic", "cover")); cover != "" {
+		brief.Cover = cover
 	}
-	brief := AlbumBrief{ID: id, Title: title, Cover: artworkURL(id, 300)}
 	if t, ok := numberAt(raw, "aDate"); ok && t > 0 {
 		brief.ReleaseYear = strconv.FormatInt(t, 10)
-	} else if y := stringAt(raw, "timePublic"); y != "" {
-		brief.ReleaseYear = y
+	} else if y := firstField(raw, "timePublic", "publishDate", "publish_date", "releaseDate"); y != "" {
+		if len(y) >= 4 {
+			brief.ReleaseYear = y[:4]
+		}
 	}
 	return brief, true
 }
