@@ -174,6 +174,13 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   永远取不到 → 专辑标题为空。
 - **封面 URL 可能是 http**（如 `qpic.y.qq.com`）：secure context 下会被当混合内容
   拦截，表现为封面空白。Go 侧统一走 `httpsURL()`，前端 `artworkSmall()` 也会升级。
+- **登录态无权播放返回 cgi 1000**：vkey 在登录态下，账号无权播放的曲目返回顶层
+  `req_0.code=1000`，但 `data.midurlinfo` 里仍带逐项 `result=104003`（游客态则是
+  code=0 + 逐项 104003）。历史 bug：把 1000 当整体失败抛错，前端匹配不到 104003
+  → 播放卡死（用户报「解析播放源失败: cgi 1000」）。修复：`cgiAndroid` 出错时
+  **仍返回 data**（不丢）；`ResolvePlay` 遇 code=1000 继续走 midurlinfo 逐项降级，
+  最终报 `resolve failed result 104003`，前端自动跳下一首。
+  回归：`QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveResolvePlayLoggedIn`。
 - **麦克风录不到声音**：先确认识别页的提示文案有没有出现"正在聆听… N%"；前端会把
   录音/识别结果写进应用日志（`identify:` 前缀），失败原因可直接看日志。
 - **启动后看不到窗口（进程和前端日志都正常）**：WebView2 首帧就绪回调偶发丢失，

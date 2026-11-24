@@ -348,6 +348,8 @@ func (c *Client) cgi(p platform, module, method string, param interface{}) (map[
 }
 
 // cgiAndroid Android 平台调用（自动补 QIMEI + session；限流 2001 时换设备退避重试）。
+// 出错时仍然把 data 带回去：vkey 等接口在「登录态下无权播放」时返回顶层 code=1000，
+// 但 midurlinfo 仍完整放在 data 里，调用方需要靠它拿到逐项错误码（104003 等）。
 func (c *Client) cgiAndroid(module, method string, param interface{}) (map[string]interface{}, error) {
 	data, err := c.cgiAndroidOnce(module, method, param)
 	if err == nil {
@@ -357,7 +359,7 @@ func (c *Client) cgiAndroid(module, method string, param interface{}) (map[strin
 	backoffs := []time.Duration{1200 * time.Millisecond, 4 * time.Second}
 	for _, wait := range backoffs {
 		if !errors.As(err, &cgiErr) || cgiErr.Code != 2001 {
-			return nil, err
+			return data, err
 		}
 		fmt.Println("rate limited (2001), rotating device and retrying after", wait)
 		time.Sleep(wait)
@@ -367,7 +369,7 @@ func (c *Client) cgiAndroid(module, method string, param interface{}) (map[strin
 			return data, nil
 		}
 	}
-	return nil, err
+	return data, err
 }
 
 func (c *Client) cgiAndroidOnce(module, method string, param interface{}) (map[string]interface{}, error) {

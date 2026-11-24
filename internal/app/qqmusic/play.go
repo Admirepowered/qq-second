@@ -3,6 +3,7 @@ package qqmusic
 // 播放地址解析：CgiGetVkey 明文流（不涉及任何加密媒体格式）。
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -69,11 +70,19 @@ func (c *Client) ResolvePlay(songMid, mediaMid, albumMid, preferredQuality strin
 	}
 	data, err := c.cgiAndroid("music.vkey.GetVkey", "UrlGetVkey", param)
 	if err != nil {
-		return nil, err
+		// cgi 1000 =「登录态下账号无权播放该曲」：服务端这时仍把逐项结果放在
+		// data.midurlinfo 里（result=104003 等），继续往下走逐项降级逻辑；
+		// 最终错误码就是 104003，前端会自动跳下一首。
+		var cgiErr *CGIError
+		if !errors.As(err, &cgiErr) || cgiErr.Code != 1000 {
+			return nil, err
+		}
 	}
-
 	items := arrayAt(data, "midurlinfo")
 	if len(items) == 0 {
+		if err != nil {
+			return nil, err // 没有逐项数据可判时保留原错误
+		}
 		return nil, fmt.Errorf("no midurlinfo")
 	}
 	// midurlinfo 与 filename 候选一一对应：遍历找第一个可用的音质
