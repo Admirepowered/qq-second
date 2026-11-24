@@ -78,9 +78,24 @@ export function ChartDetailPage({ id, name }: { id: number; name: string }) {
       <div className="page-header">
         <div
           className="page-header-cover"
-          style={{ background: `linear-gradient(135deg, var(--accent) 0%, transparent 140%), rgba(255,255,255,0.06)`, display: 'grid', placeItems: 'center', fontSize: 40, fontWeight: 800, color: '#fff' }}
+          style={
+            detail.info.cover
+              ? {
+                  backgroundImage: `url("${detail.info.cover}")`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : {
+                  background: `linear-gradient(135deg, var(--accent) 0%, transparent 140%), rgba(255,255,255,0.06)`,
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 40,
+                  fontWeight: 800,
+                  color: '#fff',
+                }
+          }
         >
-          {(detail.info.title || name).slice(0, 2)}
+          {detail.info.cover ? null : (detail.info.title || name).slice(0, 2)}
         </div>
         <div className="page-header-info">
           <div className="page-header-title">{detail.info.title || name}</div>

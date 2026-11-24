@@ -125,7 +125,7 @@ wails dev -browser                          # 浏览器调试（绑定可用）
 wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build/bin/QQSecond.exe
 ```
 
-功能走查：搜索→播放；榜单/歌单连播；逐字歌词 + 翻译（整句高亮、行间不早退）；本地文件夹→播放→seek；
+功能走查：搜索→播放；榜单（每个榜单标题与歌曲语种一致）/歌单连播；逐字歌词 + 翻译（整句高亮、行间不早退）；本地文件夹→播放→seek；
 背景四模式 + 透明度滑杆；深浅色 + 主色；托盘菜单/双击；自启开关往返；更新检查；
 右键「收藏到歌单…」→ 选「我喜欢」/自建歌单 → 心形与歌单同步；听歌识曲（麦克风 / 选文件）；
 识别页「识别电脑声音」→ 系统里随便放一首歌 → 应识别出曲名并列出 QQ 音乐候选。
@@ -144,6 +144,13 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   逐字填充只推进到开头一点点，用户观感是"这一句只亮 1 秒"。
 - **Shazam 直连超时**：`dial tcp ...:443` 超时通常是网络被墙，不是代码问题；
   设置里填手动代理（如 `http://127.0.0.1:7890`）后识曲即可用（已内建 3 次重试）。
+- **榜单 topId 不能凭记忆写**：服务端 `ToplistInfoServer/GetDetail` 的响应里，
+  榜单元信息在 `data` 节点（`data.title`/`data.frontPicUrl`/`data.updateTime`），
+  歌曲列表在顶层 `songInfoList`。历史 bug：id 与名称写错（6 其实是「港台榜」却标成
+  「日本热榜」，5 是「内地榜」、57 是「电音榜」、62 是「飙升榜」），表现为榜单页面
+  「标题和歌曲对不上」。当前正确映射：26 热歌 / 62 飙升 / 27 新歌 / 4 流行指数 /
+  3 欧美 / 16 韩国 / 17 日本 / 59 香港地区；改动后跑
+  `QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveChartMapping`。
 - **麦克风录不到声音**：先确认识别页的提示文案有没有出现"正在聆听… N%"；前端会把
   录音/识别结果写进应用日志（`identify:` 前缀），失败原因可直接看日志。
 - **启动后看不到窗口（进程和前端日志都正常）**：WebView2 首帧就绪回调偶发丢失，

@@ -165,16 +165,19 @@ func (c *Client) Home() (*HomeFeed, error) {
 }
 
 // Charts 首页榜单入口（固定 ID 列表，游客可用）。
+// Charts 返回榜单入口列表。
+// topId 与名称按服务端真实返回校准（扫描 topId 1..70 得到；错误的 id 会返回
+// cgi 10007）。不要再凭记忆改这些数字，改动后跑 TestLiveChartMapping。
 func Charts() []ChartInfo {
 	return []ChartInfo{
-		{ID: 62, Name: "热歌榜"},
-		{ID: 26, Name: "飙升榜"},
+		{ID: 26, Name: "热歌榜"},
+		{ID: 62, Name: "飙升榜"},
 		{ID: 27, Name: "新歌榜"},
 		{ID: 4, Name: "流行指数榜"},
-		{ID: 3, Name: "欧美热榜"},
-		{ID: 5, Name: "韩国热榜"},
-		{ID: 6, Name: "日本热榜"},
-		{ID: 57, Name: "粤语热榜"},
+		{ID: 3, Name: "欧美榜"},
+		{ID: 16, Name: "韩国榜"},
+		{ID: 17, Name: "日本榜"},
+		{ID: 59, Name: "香港地区榜"},
 	}
 }
 
@@ -187,16 +190,17 @@ func (c *Client) ChartDetail(topID int) (*PlaylistDetail, error) {
 		return nil, err
 	}
 	detail := &PlaylistDetail{HasMore: false, Tracks: []Track{}}
-	if info, ok := dig(data, "topinfo"); ok {
+	// 榜单元信息在 data 节点里（顶层没有 topinfo；歌曲列表在顶层 songInfoList）
+	if node, ok := dig(data, "data"); ok {
 		detail.Info = PlaylistInfo{
-			ID:     "top:" + strconv.Itoa(topID),
-			Title:  stringAt(info, "topName"),
-			Cover:  stringAt(info, "picurl"),
-			UpdateTime: stringAt(info, "updateTime"),
-			Desc:   stringAt(info, "topInfo"),
+			ID:         "top:" + strconv.Itoa(topID),
+			Title:      firstField(node, "title", "musichallTitle"),
+			Cover:      firstField(node, "frontPicUrl", "headPicUrl", "mbFrontPicUrl", "mbHeadPicUrl"),
+			UpdateTime: stringAt(node, "updateTime"),
+			Desc:       stringAt(node, "intro"),
 		}
-		if detail.Info.Cover == "" {
-			detail.Info.Cover = stringAt(info, "frontPicurl")
+		if n, ok := numberAt(node, "topId"); ok && n > 0 {
+			detail.Info.ID = "top:" + strconv.Itoa(int(n))
 		}
 	}
 	if list := arrayAt(data, "songInfoList"); list != nil {
