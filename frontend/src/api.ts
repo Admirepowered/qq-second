@@ -29,6 +29,7 @@ export const {
   QQMyPlaylists,
   IdentifyAudio,
   IdentifySystemAudio,
+  RefreshLoginKey,
   GetCredential,
   ListCachedSongs,
   ChangeCacheDir,

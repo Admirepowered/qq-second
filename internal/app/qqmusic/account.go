@@ -14,6 +14,28 @@ type UserAccount struct {
 	MyPlaylists []PlaylistInfo `json:"myPlaylists"`
 }
 
+// FetchNickname 只取昵称（轻量：不拉歌单/收藏）。
+// 刷新凭据后响应里的 nick 可能为空，用它在后台补回，避免界面显示一串 uin。
+func (c *Client) FetchNickname() (string, error) {
+	cred := c.Credential()
+	if cred.StrMusicID == "" {
+		return "", ErrNotLoggedIn
+	}
+	data, err := c.cgiAndroid("userInfo.BaseUserInfoServer", "get_user_baseinfo_v2", map[string]interface{}{
+		"vec_uin":      []interface{}{cred.StrMusicID},
+		"need_profile": 1,
+	})
+	if err != nil {
+		return "", err
+	}
+	if profile := locateProfile(data, cred.StrMusicID); profile != nil {
+		if n := firstField(profile, "nick", "nickname", "name"); n != "" {
+			return n, nil
+		}
+	}
+	return "", nil
+}
+
 // MyPlaylists 只拉「我创建的歌单」（含"我喜欢"），不含歌曲，供收藏选择器等轻量场景使用。
 func (c *Client) MyPlaylists() ([]PlaylistInfo, error) {
 	cred := c.Credential()

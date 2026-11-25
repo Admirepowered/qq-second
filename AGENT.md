@@ -22,6 +22,7 @@ QQ Second：Wails v2（Go 1.24 + React 18 + TS + zustand + 纯 CSS）桌面音�
 | `internal/app/qqmusic/lyric.go` | QRC 解密（3DES+zlib，带测试向量）、LRC 解析、翻译对齐 |
 | `internal/app/qqmusic/account.go` | 账号数据：enc_uin、收藏歌曲（dirid=201）、创建/收藏歌单（宽松解析） |
 | `internal/app/qqmusic/auth.go` | QQ 扫码登录（CookieJar 全链路）、hash33/ptqrtoken |
+| `internal/app/qqmusic/refresh.go` | 凭据刷新（`music.login.LoginServer/Login`）：musickey 3 天过期，免扫码换新 key + 清 session |
 | `internal/app/qqmusic/device.go` | 随机设备指纹、QIMEI 申请（RSA+AES）、多级回退 |
 | `internal/app/qqmusic/zzcsign.go` / `tripledes.go` | 签名与解密算法（均有已知向量测试 `sign_test.go`） |
 | `internal/app/localmusic.go` | 本地曲库扫描、标签、时长、封面缓存 |
@@ -174,16 +175,24 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   永远取不到 → 专辑标题为空。
 - **封面 URL 可能是 http**（如 `qpic.y.qq.com`）：secure context 下会被当混合内容
   拦截，表现为封面空白。Go 侧统一走 `httpsURL()`，前端 `artworkSmall()` 也会升级。
-- **vkey 组合污染（cgi 1000 的真因）**：请求 `filename` 里**只要有一个账号无权的
-  音质**（如 M800 320k——普通账号/绿钻到期即无），服务端就把**整组请求全部拒绝**
-  （登录态顶层 `req_0.code=1000`，`data.midurlinfo` 逐项也全变 104003），本可用的
-  128k 也拿不到。实测对照（同一首歌，账号无 320k 权益时）：
-  `仅M800→1000`、`仅M500→有URL`、`M800+M500→1000`、`M800+M500+C400→1000`。
-  用户 preferredQuality=high → 每首歌都带 M800 → 大面积 `cgi 1000`（卡死）。
+- **musickey 3 天过期 + 权益只认新会话（用户实测「只有重新登录的 cookie 才能听」）**：
+  `music.login.LoginServer/Login` 刷新的响应里 `keyExpiresIn=259200`（**3 天**），
+  且播放权益校验依赖「新签发的 key + 新申请的 Android session(uid/sid)」这一组合；
+  key/session 变旧后，vkey 对**年费账号有权**的曲目也返回顶层 `code=1000`（整组拒绝，
+  见下条组合污染），表象就是「账号没过期但这个 cookie 不被认」。
+  - 刷新**只凭 musickey + musicid 就能成功**（旧版登录没存 refresh_token 也能刷），
+    有 refresh_token 时按官方完整形态带上；刷新后必须清空 uid/sid。
+  - 实现：`RefreshCredential` / `InvalidateSession`；`Startup` 启动即刷新一次；
+    `QQResolvePlay` 失败时按阶梯重试：清 session 重试 → 刷新 key 重试。
+  - 设置页「账号」提供「刷新密钥」手动按钮 + 到期提示（`expireHint`）。
+  - 回归：`QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveRefreshCredential`。
+- **vkey 组合污染（cgi 1000 的直接触发条件）**：请求 `filename` 里**只要有一个账号
+  无权的音质**（如 M800 320k），服务端就把**整组请求全部拒绝**（登录态顶层
+  `req_0.code=1000`，`data.midurlinfo` 逐项也全变 104003），本可用的 128k 也拿不到。
+  实测对照（同一首歌）：`仅M800→1000`、`仅M500→有URL`、`M800+M500→1000`。
   修复（`ResolvePlay` 多级链重试）：偏好链失败 → standard 链（M500/C400）再试；
   `cgiAndroid` 出错时仍返回 data（1000 需要靠它拿逐项码）。
   连 standard 链也 104003 的 = 真无权曲目 → 前端自动跳歌。
-  回归：`QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveResolvePlayLoggedIn`。
 - **麦克风录不到声音**：先确认识别页的提示文案有没有出现"正在聆听… N%"；前端会把
   录音/识别结果写进应用日志（`identify:` 前缀），失败原因可直接看日志。
 - **启动后看不到窗口（进程和前端日志都正常）**：WebView2 首帧就绪回调偶发丢失，

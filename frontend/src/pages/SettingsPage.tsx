@@ -12,6 +12,7 @@ import {
   QQStartLogin,
   QQPollLogin,
   QQLogout,
+  RefreshLoginKey,
   GetVersion,
   GetAutoStart,
   SetAutoStart,
@@ -27,6 +28,7 @@ import {
   ChangeCacheDir,
 } from '../api';
 import { usePrefsStore } from '../store/prefs';
+import { toast } from '../store/toast';
 import { PALETTES } from '../theme';
 import { BackgroundImage, CachedSong, QRCodeImage, QRLoginPoll, Settings as SettingsData, UpdateInfo } from '../types';
 
@@ -414,25 +416,53 @@ function DataDirRow() {
 
 function AccountSection() {
   const { credential, refreshCredential } = usePrefsStore();
+  const [refreshing, setRefreshing] = useState(false);
   return (
     <div className="settings-section">
       <h3>账号</h3>
       {credential?.uin ? (
-        <SettingRow
-          label={`已登录：${credential.nickname || credential.uin}`}
-          desc="登录后可播放账号有权收听的更高音质；侧栏“我的音乐”可查看收藏与歌单"
-          control={
-            <button
-              className="btn"
-              onClick={async () => {
+        <>
+          <SettingRow
+            label={`已登录：${credential.nickname || credential.uin}`}
+            desc={
+              credential.expireHint
+                ? `播放权益依赖新签发的登录密钥，过期后需重新登录。当前${credential.expireHint}`
+                : '播放权益依赖新签发的登录密钥；密钥变旧后会自动刷新'
+            }
+            control={
+              <button className="btn" onClick={async () => {
                 await QQLogout();
                 await refreshCredential();
-              }}
-            >
-              <LogOut size={14} /> 退出登录
-            </button>
-          }
-        />
+              }}>
+                <LogOut size={14} /> 退出登录
+              </button>
+            }
+          />
+          <SettingRow
+            label="刷新登录密钥"
+            desc="免扫码换新密钥，等价于重新登录一次；播放异常（如提示无权限）时点这里"
+            control={
+              <button
+                className="btn"
+                disabled={refreshing}
+                onClick={async () => {
+                  setRefreshing(true);
+                  try {
+                    const hint = await RefreshLoginKey();
+                    await refreshCredential();
+                    toast.info(hint ? `已刷新密钥，${hint}` : '已刷新登录密钥');
+                  } catch (e) {
+                    toast.error(`刷新失败：${e instanceof Error ? e.message : String(e)}`);
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+              >
+                <RefreshCw size={14} /> {refreshing ? '刷新中…' : '刷新密钥'}
+              </button>
+            }
+          />
+        </>
       ) : (
         <QRLoginBlock onDone={() => void refreshCredential()} />
       )}

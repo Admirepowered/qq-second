@@ -26,6 +26,22 @@ type Credential struct {
 	MusicKey   string `json:"musickey"`
 	LoginType  int    `json:"loginType"`
 	Nickname   string `json:"nickname"`
+
+	// 刷新令牌（登录响应里一并下发；权益过期时用它们换新 musickey，
+	// 不必再扫码。旧版本没保存这些字段，所以升级后需要重新登录一次才有）。
+	OpenID             string `json:"openid,omitempty"`
+	RefreshToken       string `json:"refreshToken,omitempty"`
+	AccessToken        string `json:"accessToken,omitempty"`
+	RefreshKey         string `json:"refreshKey,omitempty"`
+	UnionID            string `json:"unionid,omitempty"`
+	MusickeyCreateTime int64  `json:"musickeyCreateTime,omitempty"` // 毫秒或秒
+	KeyExpiresIn       int64  `json:"keyExpiresIn,omitempty"`       // 秒
+	ExpiredAt          int64  `json:"expiredAt,omitempty"`          // unix 秒（create + expiresIn）
+}
+
+// Refreshable 是否具备免扫码刷新条件。
+func (cr Credential) Refreshable() bool {
+	return cr.MusicKey != "" && cr.OpenID != "" && cr.RefreshToken != ""
 }
 
 // platform 请求平台。

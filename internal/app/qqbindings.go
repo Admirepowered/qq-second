@@ -75,13 +75,19 @@ func (a *App) QQPollLogin() (*qqmusic.QRLoginPoll, error) {
 		return nil, err
 	}
 	if result != nil && result.Status == "done" && result.Credential != nil {
+		c := result.Credential
 		a.mu.Lock()
 		a.saveCredentialLocked(Credential{
-			Uin:        result.Credential.StrMusicID,
-			QQMusicKey: result.Credential.MusicKey,
-			Nickname:   result.Credential.Nickname,
-			LoginType:  result.Credential.LoginType,
-			LoggedAt:   time.Now().Unix(),
+			Uin:          c.StrMusicID,
+			QQMusicKey:   c.MusicKey,
+			Nickname:     c.Nickname,
+			LoginType:    c.LoginType,
+			LoggedAt:     time.Now().Unix(),
+			OpenID:       c.OpenID,
+			RefreshToken: c.RefreshToken,
+			AccessToken:  c.AccessToken,
+			RefreshKey:   c.RefreshKey,
+			ExpireHint:   expireHint(c),
 		})
 		a.mu.Unlock()
 	}

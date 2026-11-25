@@ -103,12 +103,19 @@ func (a *App) Startup(ctx context.Context) {
 	})
 	if cred := a.store.Credential; cred.QQMusicKey != "" {
 		a.qq.SetCredential(qqmusic.Credential{
-			MusicID:    parseNum(cred.Uin),
-			StrMusicID: cred.Uin,
-			MusicKey:   cred.QQMusicKey,
-			LoginType:  int(cred.LoginType),
-			Nickname:   cred.Nickname,
+			MusicID:      parseNum(cred.Uin),
+			StrMusicID:   cred.Uin,
+			MusicKey:     cred.QQMusicKey,
+			LoginType:    int(cred.LoginType),
+			Nickname:     cred.Nickname,
+			OpenID:       cred.OpenID,
+			RefreshToken: cred.RefreshToken,
+			AccessToken:  cred.AccessToken,
+			RefreshKey:   cred.RefreshKey,
 		})
+		// 启动即刷新凭据：musickey 存放几日后播放权益会失效（vkey 整组拒绝），
+		// 用 refresh_token 免扫码换新 key，权益恢复（等价于免扫码重新登录）。
+		go a.refreshCredential()
 	}
 	a.library = NewLocalLibrary(dataDir, filepath.Join(dataDir, "covers"))
 
@@ -134,12 +141,16 @@ func (a *App) Startup(ctx context.Context) {
 	cleanupUpdateLeftovers()
 
 	// 兜底显示窗口：个别机器上 WebView2 的首帧就绪回调会丢失，无边框窗口会一直
-	// 保持隐藏（现象：进程正常、前端日志正常，但看不到窗口）。这里幂等重试显示。
+	// 保持隐藏（现象：进程正常、前端日志正常，但看不到窗口）。先用 Wails runtime
+	// 试，再直接用 Win32 探 wailsWindow 句柄强显（更可靠，见 showwindow_windows.go）。
 	go func() {
-		for i := 0; i < 8; i++ {
-			time.Sleep(500 * time.Millisecond)
+		for i := 0; i < 20; i++ {
+			time.Sleep(400 * time.Millisecond)
 			wailsruntime.WindowUnminimise(ctx)
 			wailsruntime.WindowShow(ctx)
+			if ShowMainWindowNative() {
+				return
+			}
 		}
 	}()
 
@@ -282,24 +293,114 @@ func (a *App) GetCredential() Credential {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return Credential{
-		Uin:      a.store.Credential.Uin,
-		Nickname: a.store.Credential.Nickname,
-		LoggedAt: a.store.Credential.LoggedAt,
+		Uin:        a.store.Credential.Uin,
+		Nickname:   a.store.Credential.Nickname,
+		LoggedAt:   a.store.Credential.LoggedAt,
+		ExpireHint: a.store.Credential.ExpireHint,
 	}
+}
+
+// RefreshLoginKey 手动刷新登录密钥（免扫码换新 key，等价于重新登录）。
+// 返回刷新后的到期提示文案。
+func (a *App) RefreshLoginKey() string {
+	a.ensureQQ()
+	if !a.refreshCredential() {
+		return ""
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.store.Credential.ExpireHint
 }
 
 func (a *App) saveCredentialLocked(c Credential) {
 	a.store.Credential = c
 	if a.qq != nil {
 		a.qq.SetCredential(qqmusic.Credential{
-			MusicID:    parseNum(c.Uin),
-			StrMusicID: c.Uin,
-			MusicKey:   c.QQMusicKey,
-			LoginType:  int(c.LoginType),
-			Nickname:   c.Nickname,
+			MusicID:      parseNum(c.Uin),
+			StrMusicID:   c.Uin,
+			MusicKey:     c.QQMusicKey,
+			LoginType:    int(c.LoginType),
+			Nickname:     c.Nickname,
+			OpenID:       c.OpenID,
+			RefreshToken: c.RefreshToken,
+			AccessToken:  c.AccessToken,
+			RefreshKey:   c.RefreshKey,
 		})
 	}
 	_ = a.saveStoreLocked()
+}
+
+// isPrivilegeError 判断是否是「鉴权/权益失效」类错误（可刷新后重试）。
+func isPrivilegeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var cgiErr *qqmusic.CGIError
+	if errors.As(err, &cgiErr) && cgiErr.Code == 1000 {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "104003") ||
+		strings.Contains(msg, "104009") ||
+		strings.Contains(msg, "no playable")
+}
+
+// refreshCredential 尝试用 refresh_token 免扫码换新凭据。
+// 返回 true 表示凭据已刷新（调用方应重试原操作）。
+func (a *App) refreshCredential() bool {
+	if a.qq == nil {
+		return false
+	}
+	fresh, err := a.qq.RefreshCredential()
+	if err != nil {
+		if errors.Is(err, qqmusic.ErrNoRefreshToken) {
+			logsWrite("credential refresh unavailable: " + err.Error() + "（需重新扫码登录一次以获得刷新令牌）")
+		} else {
+			logsWrite("credential refresh failed: " + err.Error())
+		}
+		return false
+	}
+	a.mu.Lock()
+	a.saveCredentialLocked(Credential{
+		Uin:          fresh.StrMusicID,
+		QQMusicKey:   fresh.MusicKey,
+		Nickname:     fresh.Nickname,
+		LoginType:    fresh.LoginType,
+		LoggedAt:     time.Now().Unix(),
+		OpenID:       fresh.OpenID,
+		RefreshToken: fresh.RefreshToken,
+		AccessToken:  fresh.AccessToken,
+		RefreshKey:   fresh.RefreshKey,
+		ExpireHint:   expireHint(fresh),
+	})
+	needNick := a.store.Credential.Nickname == ""
+	a.mu.Unlock()
+	logsWrite("credential refreshed (key rotated, 播放权益已续期)")
+	if needNick {
+		// 刷新响应通常不带昵称：后台补回，免得界面退化成一串 uin。
+		go func() {
+			nick, err := a.qq.FetchNickname()
+			if err != nil || nick == "" {
+				return
+			}
+			a.mu.Lock()
+			if a.store.Credential.Nickname == "" {
+				a.store.Credential.Nickname = nick
+				_ = a.saveStoreLocked()
+			}
+			a.mu.Unlock()
+		}()
+	}
+	return true
+}
+
+// expireHint 生成人类可读的到期提示。
+func expireHint(c *qqmusic.Credential) string {
+	if c.ExpiredAt <= 0 {
+		return ""
+	}
+	t := time.Unix(c.ExpiredAt, 0).Format("2006-01-02 15:04")
+	return "权益至 " + t
 }
 
 // ---- 播放解析（token 表） ----
@@ -326,6 +427,18 @@ func (a *App) QQResolvePlay(track Track, preferredQuality string) (PlaybackSourc
 		a.mu.Unlock()
 	}
 	src, err := a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
+	if err != nil && isPrivilegeError(err) {
+		// 权益/鉴权失效阶梯（用户实测：只有新登录的凭据才带播放权益）：
+		// ① 丢弃旧 session 重试（vkey 权益依赖「新 key + 新 session」组合，最便宜）
+		a.qq.InvalidateSession()
+		src, err = a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
+		if err != nil && isPrivilegeError(err) {
+			// ② 免扫码刷新 key 后再试（等价于重新登录拿新 cookie）
+			if a.refreshCredential() {
+				src, err = a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
+			}
+		}
+	}
 	if err != nil {
 		return PlaybackSource{}, err
 	}

@@ -165,6 +165,8 @@ export interface Credential {
   uin: string;
   nickname: string;
   loggedAt: number;
+  /** 权益到期提示（如「权益至 2026-11-28 16:29」），登录/刷新后由后端写入 */
+  expireHint?: string;
 }
 
 export interface BackgroundImage {

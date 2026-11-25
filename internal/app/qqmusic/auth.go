@@ -321,13 +321,32 @@ func (c *Client) authorizeQQQR(uin, sigx string) (*Credential, error) {
 		return nil, fmt.Errorf("credential invalid")
 	}
 	nickname := stringAt(data, "nick")
-	return &Credential{
+	// 刷新令牌一并保存：权益过期时用 refresh_token 免扫码换新 key
+	cred := &Credential{
 		MusicID:    musicID,
 		StrMusicID: strMusicID,
 		MusicKey:   musicKey,
 		LoginType:  2,
 		Nickname:   nickname,
-	}, nil
+		OpenID:     firstField(data, "openid"),
+		RefreshToken: firstField(data, "refresh_token", "refreshToken"),
+		AccessToken:  firstField(data, "access_token", "accessToken"),
+		RefreshKey:   firstField(data, "refresh_key", "refreshKey"),
+		UnionID:      firstField(data, "unionid"),
+	}
+	if t, ok := numberAt(data, "musickeyCreateTime"); ok {
+		cred.MusickeyCreateTime = t
+	}
+	if t, ok := numberAt(data, "keyExpiresIn"); ok {
+		cred.KeyExpiresIn = t
+	}
+	if created, ok := numberAt(data, "musickeyCreateTime"); ok && created > 0 && cred.KeyExpiresIn > 0 {
+		if created < 1_000_000_000_000 {
+			created *= 1000
+		}
+		cred.ExpiredAt = (created + cred.KeyExpiresIn*1000) / 1000
+	}
+	return cred, nil
 }
 
 // cgiWithCommOverride 以 comm 覆盖方式调用 CGI。

@@ -60,6 +60,14 @@ type Credential struct {
 	Nickname   string `json:"nickname"`
 	LoginType  int    `json:"loginType"`
 	LoggedAt   int64  `json:"loggedAt"`
+
+	// 刷新令牌（免扫码续期用；旧版本登录的数据没有这些字段，
+	// 重新扫码一次即可获得）
+	OpenID        string `json:"openid,omitempty"`
+	RefreshToken  string `json:"refreshToken,omitempty"`
+	AccessToken   string `json:"accessToken,omitempty"`
+	RefreshKey    string `json:"refreshKey,omitempty"`
+	ExpireHint    string `json:"expireHint,omitempty"` // 提示用：凭据权益何时到期
 }
 
 // SessionData 是播放器状态快照（队列、进度等），启动时恢复。
