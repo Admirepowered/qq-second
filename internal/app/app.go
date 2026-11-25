@@ -330,6 +330,32 @@ func (a *App) saveCredentialLocked(c Credential) {
 	_ = a.saveStoreLocked()
 }
 
+// resolveQQStream 解析 vkey 播放地址，并在「权益/鉴权失效」时自动续期重试。
+//
+// 阶梯（用户实测：只有新签发的 key + 新 session 才带播放权益）：
+//  0. 直接解析
+//  1. 丢弃旧 Android session 后重试（最便宜，多数情况够用）
+//  2. 免扫码刷新 musickey 后重试（等价于重新登录拿新 cookie）
+//
+// 两条入口（首次播放 / 播放中途流过期）都走这里，避免漏掉续期。
+func (a *App) resolveQQStream(mid, mediaMid, albumMid, quality string) (*qqmusic.ResolvedSource, error) {
+	src, err := a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
+	if err == nil || !isPrivilegeError(err) {
+		return src, err
+	}
+	// ① 清 session 重试
+	a.qq.InvalidateSession()
+	src, err = a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
+	if err == nil || !isPrivilegeError(err) {
+		return src, err
+	}
+	// ② 刷新 key 重试
+	if a.refreshCredential() {
+		return a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
+	}
+	return src, err
+}
+
 // isPrivilegeError 判断是否是「鉴权/权益失效」类错误（可刷新后重试）。
 func isPrivilegeError(err error) bool {
 	if err == nil {
@@ -361,10 +387,15 @@ func (a *App) refreshCredential() bool {
 		return false
 	}
 	a.mu.Lock()
+	// 刷新响应通常不带昵称：优先用刷新结果，其次沿用已保存的，避免界面退化成 uin
+	nick := fresh.Nickname
+	if nick == "" {
+		nick = a.store.Credential.Nickname
+	}
 	a.saveCredentialLocked(Credential{
 		Uin:          fresh.StrMusicID,
 		QQMusicKey:   fresh.MusicKey,
-		Nickname:     fresh.Nickname,
+		Nickname:     nick,
 		LoginType:    fresh.LoginType,
 		LoggedAt:     time.Now().Unix(),
 		OpenID:       fresh.OpenID,
@@ -426,19 +457,7 @@ func (a *App) QQResolvePlay(track Track, preferredQuality string) (PlaybackSourc
 		preferredQuality = a.store.Settings.PreferredQuality
 		a.mu.Unlock()
 	}
-	src, err := a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
-	if err != nil && isPrivilegeError(err) {
-		// 权益/鉴权失效阶梯（用户实测：只有新登录的凭据才带播放权益）：
-		// ① 丢弃旧 session 重试（vkey 权益依赖「新 key + 新 session」组合，最便宜）
-		a.qq.InvalidateSession()
-		src, err = a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
-		if err != nil && isPrivilegeError(err) {
-			// ② 免扫码刷新 key 后再试（等价于重新登录拿新 cookie）
-			if a.refreshCredential() {
-				src, err = a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
-			}
-		}
-	}
+	src, err := a.resolveQQStream(track.Mid, track.MediaMid, track.AlbumMid, preferredQuality)
 	if err != nil {
 		return PlaybackSource{}, err
 	}
@@ -484,7 +503,8 @@ func (a *App) qqReplayRefresh(token string) bool {
 		return false
 	}
 	track := Track{Kind: "qq", Mid: old.mid, MediaMid: old.mediaMid, AlbumMid: old.albumMid}
-	src, err := a.qq.ResolvePlay(track.Mid, track.MediaMid, track.AlbumMid, old.triedQ)
+	// 走同一套续期阶梯：流过期常常正好是 key 到期（3 天），这里能自动续上
+	src, err := a.resolveQQStream(track.Mid, track.MediaMid, track.AlbumMid, old.triedQ)
 	if err != nil {
 		return false
 	}
