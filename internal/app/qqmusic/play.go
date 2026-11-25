@@ -49,12 +49,36 @@ func qualityCandidates(preferred string) []fileKind {
 }
 
 // ResolvePlay 解析一首歌的播放 URL（降级到第一个可用的候选）。
+//
+// 服务端行为（实测）：请求里只要带上一个账号无权的音质（如 M800 320k，
+// 普通账号/绿钻到期即无），整组请求会被整体拒绝（登录态 code=1000，data 里
+// 逐项也全变 104003），连本可用的低音质都拿不到。因此失败时按链降级重试：
+// 偏好链失败 → standard 链（M500/C400）→ 最低链（C400）。
 func (c *Client) ResolvePlay(songMid, mediaMid, albumMid, preferredQuality string) (*ResolvedSource, error) {
 	if mediaMid == "" {
 		mediaMid = songMid
 	}
-	candidates := qualityCandidates(preferredQuality)
+	primary := qualityCandidates(preferredQuality)
 
+	// 重试链：偏好链 → standard 兜底链。偏好链本身已是 standard 时无需重试。
+	chains := [][]fileKind{primary}
+	if len(primary) > len(clearKinds[3:]) {
+		chains = append(chains, clearKinds[3:])
+	}
+
+	var lastErr error
+	for _, chain := range chains {
+		src, err := c.resolveWith(songMid, mediaMid, chain)
+		if err == nil {
+			return src, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+// resolveWith 用指定的候选链发起一次 vkey 请求并解析结果。
+func (c *Client) resolveWith(songMid, mediaMid string, candidates []fileKind) (*ResolvedSource, error) {
 	var filenames []string
 	for _, k := range candidates {
 		filenames = append(filenames, k.prefix+mediaMid+k.ext)
@@ -70,9 +94,9 @@ func (c *Client) ResolvePlay(songMid, mediaMid, albumMid, preferredQuality strin
 	}
 	data, err := c.cgiAndroid("music.vkey.GetVkey", "UrlGetVkey", param)
 	if err != nil {
-		// cgi 1000 =「登录态下账号无权播放该曲」：服务端这时仍把逐项结果放在
-		// data.midurlinfo 里（result=104003 等），继续往下走逐项降级逻辑；
-		// 最终错误码就是 104003，前端会自动跳下一首。
+		// cgi 1000 =「该组里有账号无权的音质」：服务端此时仍把逐项结果放在
+		// data.midurlinfo 里（全部 result=104003），继续走逐项判断逻辑；
+		// 由上层决定是否降级链重试。
 		var cgiErr *CGIError
 		if !errors.As(err, &cgiErr) || cgiErr.Code != 1000 {
 			return nil, err

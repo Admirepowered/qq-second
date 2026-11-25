@@ -2,12 +2,15 @@ package qqmusic
 
 // 登录态播放解析回归测试（真实链路）。
 //
-// 背景（历史 bug「解析播放源失败: cgi 1000」）：vkey 接口在**登录态**下，
-// 账号无权播放的曲目会返回顶层 req_0.code=1000（游客态则是 code=0 + 逐项
-// result=104003），data.midurlinfo 里其实仍带着逐项结果。旧代码把 1000 当
-// 整体失败直接抛错，前端匹配不到 104003 → 播放卡死。修复后：code=1000 时
-// 继续走 midurlinfo 逐项降级，最终报「resolve failed result 104003」，
-// 前端自动跳下一首。
+// 背景（历史 bug「解析播放源失败: cgi 1000」）：vkey 请求 filename 里只要
+// 带一个账号无权的音质（M800 320k，普通账号/绿钻到期即无），服务端就把整组
+// 请求全部拒绝（登录态 req_0.code=1000，midurlinfo 逐项也全变 104003），
+// 本可用的 128k 也拿不到。用户 preferredQuality=high 时每首歌都带 M800
+// → 大面积 cgi 1000 → 播放卡死。
+//
+// 修复：ResolvePlay 多级链重试——偏好链失败 → standard 链（M500/C400）再试。
+// 本测试同时验证：①有权曲目正常出 URL；②无 320k 权益的曲目降到 standard
+// 播放（而不是失败）；③真无权曲目（连 128k 都无权）报 104003（前端跳歌）。
 
 import (
 	"encoding/json"
@@ -41,7 +44,7 @@ func TestLiveResolvePlayLoggedIn(t *testing.T) {
 		LoginType:  2,
 	})
 
-	// 账号有权播放的曲目：应成功并给出 URL
+	// ① 免费曲（standard 链）：应成功并给出 URL
 	res, err := c.Search("song", "两只老虎 群星", 1)
 	if err != nil {
 		t.Fatalf("search: %v", err)
@@ -52,13 +55,26 @@ func TestLiveResolvePlayLoggedIn(t *testing.T) {
 	s := res.Songs[0]
 	src, err := c.ResolvePlay(s.Mid, s.MediaMid, s.AlbumMid, "standard")
 	if err != nil {
-		t.Fatalf("有权曲目解析失败: %v", err)
+		t.Fatalf("免费曲解析失败: %v", err)
 	}
 	if src == nil || src.URL == "" {
-		t.Fatal("有权曲目没有返回 URL")
+		t.Fatal("免费曲没有返回 URL")
 	}
 
-	// 无权曲目（登录态 cgi 1000 场景）：应报 104003 等可跳歌曲码，而不是 cgi 1000
+	// ② high 偏好（带 M800 的组合请求）：即便账号无 320k 权益，
+	// 也必须通过降级链拿到 128k URL，而不是 cgi 1000 失败
+	src2, err := c.ResolvePlay(s.Mid, s.MediaMid, s.AlbumMid, "high")
+	if err != nil {
+		if strings.Contains(err.Error(), "cgi 1000") {
+			t.Fatalf("high 偏好组合请求被整体拒绝且未降级重试: %v", err)
+		}
+		t.Fatalf("high 偏好应可降级播放: %v", err)
+	}
+	if src2 == nil || src2.URL == "" {
+		t.Fatal("high 偏好降级后没有返回 URL")
+	}
+
+	// ③ 真无权曲目：应报 104003 等可跳歌曲码，而不是 cgi 1000
 	res2, err := c.Search("song", "小星星 儿歌", 1)
 	if err != nil || len(res2.Songs) == 0 {
 		t.Skipf("search2: %v", err)
@@ -70,7 +86,7 @@ func TestLiveResolvePlayLoggedIn(t *testing.T) {
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "cgi 1000") {
-		t.Fatalf("登录态无权曲目仍报 cgi 1000（回退了）: %v", err)
+		t.Fatalf("无权曲目仍报 cgi 1000（回退了）: %v", err)
 	}
 	if !strings.Contains(msg, "104003") && !strings.Contains(msg, "104009") &&
 		!strings.Contains(msg, "101404") && !strings.Contains(msg, "no playable") {

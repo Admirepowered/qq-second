@@ -174,12 +174,15 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   永远取不到 → 专辑标题为空。
 - **封面 URL 可能是 http**（如 `qpic.y.qq.com`）：secure context 下会被当混合内容
   拦截，表现为封面空白。Go 侧统一走 `httpsURL()`，前端 `artworkSmall()` 也会升级。
-- **登录态无权播放返回 cgi 1000**：vkey 在登录态下，账号无权播放的曲目返回顶层
-  `req_0.code=1000`，但 `data.midurlinfo` 里仍带逐项 `result=104003`（游客态则是
-  code=0 + 逐项 104003）。历史 bug：把 1000 当整体失败抛错，前端匹配不到 104003
-  → 播放卡死（用户报「解析播放源失败: cgi 1000」）。修复：`cgiAndroid` 出错时
-  **仍返回 data**（不丢）；`ResolvePlay` 遇 code=1000 继续走 midurlinfo 逐项降级，
-  最终报 `resolve failed result 104003`，前端自动跳下一首。
+- **vkey 组合污染（cgi 1000 的真因）**：请求 `filename` 里**只要有一个账号无权的
+  音质**（如 M800 320k——普通账号/绿钻到期即无），服务端就把**整组请求全部拒绝**
+  （登录态顶层 `req_0.code=1000`，`data.midurlinfo` 逐项也全变 104003），本可用的
+  128k 也拿不到。实测对照（同一首歌，账号无 320k 权益时）：
+  `仅M800→1000`、`仅M500→有URL`、`M800+M500→1000`、`M800+M500+C400→1000`。
+  用户 preferredQuality=high → 每首歌都带 M800 → 大面积 `cgi 1000`（卡死）。
+  修复（`ResolvePlay` 多级链重试）：偏好链失败 → standard 链（M500/C400）再试；
+  `cgiAndroid` 出错时仍返回 data（1000 需要靠它拿逐项码）。
+  连 standard 链也 104003 的 = 真无权曲目 → 前端自动跳歌。
   回归：`QQ_LIVE=1 go test ./internal/app/qqmusic/ -run TestLiveResolvePlayLoggedIn`。
 - **麦克风录不到声音**：先确认识别页的提示文案有没有出现"正在聆听… N%"；前端会把
   录音/识别结果写进应用日志（`identify:` 前缀），失败原因可直接看日志。
