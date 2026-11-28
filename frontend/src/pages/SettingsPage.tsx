@@ -13,6 +13,7 @@ import {
   QQPollLogin,
   QQLogout,
   RefreshLoginKey,
+  GetLoginStatus,
   GetVersion,
   GetAutoStart,
   SetAutoStart,
@@ -417,6 +418,27 @@ function DataDirRow() {
 function AccountSection() {
   const { credential, refreshCredential } = usePrefsStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [status, setStatus] = useState<LoginStatus | null>(null);
+
+  // 拉取密钥寿命：过期后无法免扫码续期，必须引导重新扫码
+  useEffect(() => {
+    if (!credential?.uin) {
+      setStatus(null);
+      return;
+    }
+    let cancelled = false;
+    GetLoginStatus()
+      .then((s) => {
+        if (!cancelled) setStatus(s as unknown as LoginStatus);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [credential?.uin, credential?.expireHint]);
+
+  const expired = !!status?.expired;
+
   return (
     <div className="settings-section">
       <h3>账号</h3>
@@ -425,9 +447,11 @@ function AccountSection() {
           <SettingRow
             label={`已登录：${credential.nickname || credential.uin}`}
             desc={
-              credential.expireHint
-                ? `播放权益依赖新签发的登录密钥，过期后需重新登录。当前${credential.expireHint}`
-                : '播放权益依赖新签发的登录密钥；密钥变旧后会自动刷新'
+              expired
+                ? '登录密钥已过期（有效期 3 天），播放权益已失效。请重新扫码登录，登录后会自动保持续期。'
+                : credential.expireHint
+                  ? `密钥有效期内会自动续期，无需手动操作。当前${credential.expireHint}`
+                  : '密钥有效期 3 天，剩余寿命过半时会自动续期'
             }
             control={
               <button className="btn" onClick={async () => {
@@ -438,36 +462,49 @@ function AccountSection() {
               </button>
             }
           />
-          <SettingRow
-            label="刷新登录密钥"
-            desc="免扫码换新密钥，等价于重新登录一次；播放异常（如提示无权限）时点这里"
-            control={
-              <button
-                className="btn"
-                disabled={refreshing}
-                onClick={async () => {
-                  setRefreshing(true);
-                  try {
-                    const hint = await RefreshLoginKey();
-                    await refreshCredential();
-                    toast.info(hint ? `已刷新密钥，${hint}` : '已刷新登录密钥');
-                  } catch (e) {
-                    toast.error(`刷新失败：${e instanceof Error ? e.message : String(e)}`);
-                  } finally {
-                    setRefreshing(false);
-                  }
-                }}
-              >
-                <RefreshCw size={14} /> {refreshing ? '刷新中…' : '刷新密钥'}
-              </button>
-            }
-          />
+          {expired ? (
+            <QRLoginBlock onDone={() => void refreshCredential()} />
+          ) : (
+            <SettingRow
+              label="刷新登录密钥"
+              desc="免扫码换新密钥；一般无需手动点，密钥快到期时会自动续期"
+              control={
+                <button
+                  className="btn"
+                  disabled={refreshing}
+                  onClick={async () => {
+                    setRefreshing(true);
+                    try {
+                      const hint = await RefreshLoginKey();
+                      await refreshCredential();
+                      toast.info(hint ? `已刷新密钥，${hint}` : '已刷新登录密钥');
+                    } catch (e) {
+                      toast.error(`${e instanceof Error ? e.message : String(e)}`);
+                    } finally {
+                      setRefreshing(false);
+                    }
+                  }}
+                >
+                  <RefreshCw size={14} /> {refreshing ? '刷新中…' : '刷新密钥'}
+                </button>
+              }
+            />
+          )}
         </>
       ) : (
         <QRLoginBlock onDone={() => void refreshCredential()} />
       )}
     </div>
   );
+}
+
+interface LoginStatus {
+  loggedIn: boolean;
+  nickname?: string;
+  expireHint?: string;
+  keyAgeHours: number;
+  expired: boolean;
+  canRefresh: boolean;
 }
 
 // 扫码登录块

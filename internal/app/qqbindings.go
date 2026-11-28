@@ -76,20 +76,25 @@ func (a *App) QQPollLogin() (*qqmusic.QRLoginPoll, error) {
 	}
 	if result != nil && result.Status == "done" && result.Credential != nil {
 		c := result.Credential
+		issued := time.Now()
+		// 记录新 key 的签发时间（后续靠它在过期前主动续期）
+		a.qq.SetKeyIssuedAt(issued)
+		a.qq.SessionInvalid()
 		a.mu.Lock()
 		a.saveCredentialLocked(Credential{
 			Uin:          c.StrMusicID,
 			QQMusicKey:   c.MusicKey,
 			Nickname:     c.Nickname,
 			LoginType:    c.LoginType,
-			LoggedAt:     time.Now().Unix(),
+			LoggedAt:     issued.Unix(),
 			OpenID:       c.OpenID,
 			RefreshToken: c.RefreshToken,
 			AccessToken:  c.AccessToken,
 			RefreshKey:   c.RefreshKey,
-			ExpireHint:   expireHint(c),
+			ExpireHint:   expireHintFrom(issued),
 		})
 		a.mu.Unlock()
+		logsWrite("login done: 新密钥已保存（有效期 3 天，到期前会自动续期）")
 	}
 	return result, nil
 }

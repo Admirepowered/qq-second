@@ -30,6 +30,7 @@ export const {
   IdentifyAudio,
   IdentifySystemAudio,
   RefreshLoginKey,
+  GetLoginStatus,
   GetCredential,
   ListCachedSongs,
   ChangeCacheDir,

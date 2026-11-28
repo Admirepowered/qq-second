@@ -113,9 +113,24 @@ func (a *App) Startup(ctx context.Context) {
 			AccessToken:  cred.AccessToken,
 			RefreshKey:   cred.RefreshKey,
 		})
-		// 启动即刷新凭据：musickey 存放几日后播放权益会失效（vkey 整组拒绝），
-		// 用 refresh_token 免扫码换新 key，权益恢复（等价于免扫码重新登录）。
-		go a.refreshCredential()
+		// key 只有 3 天有效期，且**过期后无法刷新**，所以启动时先恢复签发时间，
+		// 再按剩余寿命决定是否主动换新（而不是等到播放失败才补救）。
+		if cred.LoggedAt > 0 {
+			a.qq.SetKeyIssuedAt(time.Unix(cred.LoggedAt, 0))
+		}
+		go func() {
+			if a.qq.KeyExpired() {
+				logsWrite("credential expired: 登录密钥已过期（有效期 3 天），需重新扫码登录后才能恢复播放权益")
+				return
+			}
+			if a.ensureKeyFresh() {
+				return
+			}
+			// 签发时间未知（旧版数据）或还较新：尝试验证一次可用性
+			if a.qq.KeyIssuedAt().IsZero() {
+				a.refreshCredential()
+			}
+		}()
 	}
 	a.library = NewLocalLibrary(dataDir, filepath.Join(dataDir, "covers"))
 
@@ -300,16 +315,54 @@ func (a *App) GetCredential() Credential {
 	}
 }
 
-// RefreshLoginKey 手动刷新登录密钥（免扫码换新 key，等价于重新登录）。
-// 返回刷新后的到期提示文案。
-func (a *App) RefreshLoginKey() string {
+// RefreshLoginKey 手动刷新登录密钥（免扫码换新 key）。
+// 返回刷新后的到期提示文案；key 已过期或刷新失败时返回错误说明。
+func (a *App) RefreshLoginKey() (string, error) {
 	a.ensureQQ()
+	if a.qq.KeyExpired() {
+		return "", qqmusic.ErrKeyExpired
+	}
 	if !a.refreshCredential() {
-		return ""
+		status := a.qq.RefreshStatus()
+		if status != "" {
+			return "", errors.New(status + "（稍后再试，或重新扫码登录）")
+		}
+		return "", errors.New("刷新失败，请稍后重试或重新扫码登录")
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.store.Credential.ExpireHint
+	return a.store.Credential.ExpireHint, nil
+}
+
+// LoginStatus 返回登录状态摘要（含密钥剩余寿命），供设置页展示。
+type LoginStatus struct {
+	LoggedIn    bool   `json:"loggedIn"`
+	Nickname    string `json:"nickname,omitempty"`
+	ExpireHint  string `json:"expireHint,omitempty"`
+	KeyAgeHours int    `json:"keyAgeHours"`
+	Expired     bool   `json:"expired"`
+	CanRefresh  bool   `json:"canRefresh"`
+}
+
+// GetLoginStatus 查询登录密钥状态。
+func (a *App) GetLoginStatus() LoginStatus {
+	a.mu.Lock()
+	cred := a.store.Credential
+	a.mu.Unlock()
+	if cred.Uin == "" || cred.QQMusicKey == "" {
+		return LoginStatus{}
+	}
+	st := LoginStatus{
+		LoggedIn:   true,
+		Nickname:   cred.Nickname,
+		ExpireHint: cred.ExpireHint,
+	}
+	if a.qq != nil {
+		st.KeyAgeHours = int(a.qq.KeyAge().Hours())
+		st.Expired = a.qq.KeyExpired()
+		st.CanRefresh = !st.Expired && a.qq.CanAttemptRefresh()
+	}
+	return st
 }
 
 func (a *App) saveCredentialLocked(c Credential) {
@@ -332,26 +385,42 @@ func (a *App) saveCredentialLocked(c Credential) {
 
 // resolveQQStream 解析 vkey 播放地址，并在「权益/鉴权失效」时自动续期重试。
 //
-// 阶梯（用户实测：只有新签发的 key + 新 session 才带播放权益）：
-//  0. 直接解析
-//  1. 丢弃旧 Android session 后重试（最便宜，多数情况够用）
-//  2. 免扫码刷新 musickey 后重试（等价于重新登录拿新 cookie）
+// 阶梯：
+//  1. key 剩余寿命不足一半 → 先续期（**主要保障**：key 过期后无法刷新，只能在
+//     过期前换新）
+//  2. 直接解析
+//  3. 失败且是权益类错误 → 丢弃旧 session 重试
+//  4. 仍失败 → 刷新 key 重试（受退避约束）
 //
 // 两条入口（首次播放 / 播放中途流过期）都走这里，避免漏掉续期。
 func (a *App) resolveQQStream(mid, mediaMid, albumMid, quality string) (*qqmusic.ResolvedSource, error) {
+	// 阶段 1：临近过期先换 key
+	if a.ensureKeyFresh() {
+		return a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
+	}
+
 	src, err := a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
 	if err == nil || !isPrivilegeError(err) {
 		return src, err
 	}
-	// ① 清 session 重试
+
+	// 阶段 3：清 session 重试
 	a.qq.InvalidateSession()
 	src, err = a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
 	if err == nil || !isPrivilegeError(err) {
 		return src, err
 	}
-	// ② 刷新 key 重试
+
+	// 阶段 4：刷新 key 重试（退避由 refreshCredential 内部处理）
 	if a.refreshCredential() {
-		return a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
+		src, err = a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
+		if err == nil {
+			return src, nil
+		}
+	}
+	// 仍是权益错误：如果是 key 已过期，换成可读的指引，避免前端反复自动跳歌
+	if a.qq != nil && a.qq.KeyExpired() {
+		return nil, qqmusic.ErrKeyExpired
 	}
 	return src, err
 }
@@ -371,21 +440,33 @@ func isPrivilegeError(err error) bool {
 		strings.Contains(msg, "no playable")
 }
 
-// refreshCredential 尝试用 refresh_token 免扫码换新凭据。
+// refreshCredential 尝试免扫码换新凭据。
 // 返回 true 表示凭据已刷新（调用方应重试原操作）。
+//
+// key 有效期只有 3 天，且**过期后无法再用它刷新**（返回 login failed 1000），
+// 所以这里做三件事：① 过期直接拒绝并记日志给明确指引；② 失败退避，避免每首歌
+// 都打一次请求（历史问题：日志几分钟刷几十条）；③ 成功后记录新 key 的签发时间。
 func (a *App) refreshCredential() bool {
 	if a.qq == nil {
 		return false
 	}
+	if !a.qq.CanAttemptRefresh() {
+		return false // 退避中，不重复请求
+	}
 	fresh, err := a.qq.RefreshCredential()
 	if err != nil {
-		if errors.Is(err, qqmusic.ErrNoRefreshToken) {
-			logsWrite("credential refresh unavailable: " + err.Error() + "（需重新扫码登录一次以获得刷新令牌）")
-		} else {
+		switch {
+		case errors.Is(err, qqmusic.ErrKeyExpired):
+			logsWrite("credential refresh skipped: 登录密钥已过期（有效期 3 天），需要重新扫码登录")
+		case errors.Is(err, qqmusic.ErrNoRefreshToken):
+			logsWrite("credential refresh unavailable: " + err.Error())
+		default:
 			logsWrite("credential refresh failed: " + err.Error())
 		}
 		return false
 	}
+	issued := time.Now()
+	a.qq.SetKeyIssuedAt(issued)
 	a.mu.Lock()
 	// 刷新响应通常不带昵称：优先用刷新结果，其次沿用已保存的，避免界面退化成 uin
 	nick := fresh.Nickname
@@ -397,12 +478,12 @@ func (a *App) refreshCredential() bool {
 		QQMusicKey:   fresh.MusicKey,
 		Nickname:     nick,
 		LoginType:    fresh.LoginType,
-		LoggedAt:     time.Now().Unix(),
+		LoggedAt:     issued.Unix(),
 		OpenID:       fresh.OpenID,
 		RefreshToken: fresh.RefreshToken,
 		AccessToken:  fresh.AccessToken,
 		RefreshKey:   fresh.RefreshKey,
-		ExpireHint:   expireHint(fresh),
+		ExpireHint:   expireHintFrom(issued),
 	})
 	needNick := a.store.Credential.Nickname == ""
 	a.mu.Unlock()
@@ -425,13 +506,34 @@ func (a *App) refreshCredential() bool {
 	return true
 }
 
-// expireHint 生成人类可读的到期提示。
-func expireHint(c *qqmusic.Credential) string {
-	if c.ExpiredAt <= 0 {
+// ensureKeyFresh 在 key 剩余寿命不足一半时主动续期。
+//
+// 这是续期的**主要**路径：因为 key 过期后无法用自身刷新，只能在过期前换新。
+// 返回 true 表示刚换过 key（调用方应重试原操作）。
+func (a *App) ensureKeyFresh() bool {
+	if a.qq == nil {
+		return false
+	}
+	issued := a.qq.KeyIssuedAt()
+	if issued.IsZero() {
+		return false // 签发时间未知（旧版登录数据），交给失败阶梯
+	}
+	age := a.qq.KeyAge()
+	if age < qqmusic.KeyLifetime/2 {
+		return false // 还很新，不必换
+	}
+	if a.qq.KeyExpired() {
+		return false // 已过期，刷新也无效
+	}
+	return a.refreshCredential()
+}
+
+// expireHintFrom 生成人类可读的到期提示（key 签发后 3 天）。
+func expireHintFrom(issued time.Time) string {
+	if issued.IsZero() {
 		return ""
 	}
-	t := time.Unix(c.ExpiredAt, 0).Format("2006-01-02 15:04")
-	return "权益至 " + t
+	return "权益至 " + issued.Add(qqmusic.KeyLifetime).Format("2006-01-02 15:04")
 }
 
 // ---- 播放解析（token 表） ----

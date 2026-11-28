@@ -64,6 +64,11 @@ type Client struct {
 	sidAt      int64
 	qrsig      string
 	onIdentity func()
+
+	// 续期状态（musickey 3 天过期；过期前要主动换新，见 refresh.go）
+	keyIssuedAt  int64 // 当前 key 签发时间（unix 秒）
+	refreshFailAt int64 // 上次刷新失败时间（unix 秒），用于退避
+	refreshFails  int   // 连续刷新失败次数
 }
 
 // SetIdentityChangedHook 设置身份变更回调（用于持久化）。
