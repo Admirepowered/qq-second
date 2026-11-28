@@ -37,6 +37,8 @@ type App struct {
 	playIndex          map[string]*playToken // token -> 解析结果
 	updateInfo         *UpdateInfo           // 最近一次更新检查结果
 	singleInstRelease  func()                // 单实例锁释放
+	appDone            chan struct{}         // 退出信号（后台定时器用）
+	appDoneOnce        sync.Once
 }
 
 // playToken 是一次 QQ 播放解析的结果，前端只拿 token，签名 URL 不出后端。
@@ -63,6 +65,7 @@ var (
 func NewApp() *App {
 	a := &App{
 		playIndex: make(map[string]*playToken),
+		appDone:   make(chan struct{}),
 	}
 	// 供流代理在签名 URL 过期时刷新 token 对应的 URL。
 	refreshStreamToken = a.qqReplayRefresh
@@ -114,23 +117,16 @@ func (a *App) Startup(ctx context.Context) {
 			RefreshKey:   cred.RefreshKey,
 		})
 		// key 只有 3 天有效期，且**过期后无法刷新**，所以启动时先恢复签发时间，
-		// 再按剩余寿命决定是否主动换新（而不是等到播放失败才补救）。
-		if cred.LoggedAt > 0 {
-			a.qq.SetKeyIssuedAt(time.Unix(cred.LoggedAt, 0))
+		// 再按「距上次刷新是否超过 24h」决定是否换新（每日续期，留 2 天容错）。
+		// 优先用 KeyRefreshedAt（上次刷新时间），老数据没有则退回 LoggedAt。
+		last := cred.KeyRefreshedAt
+		if last <= 0 {
+			last = cred.LoggedAt
 		}
-		go func() {
-			if a.qq.KeyExpired() {
-				logsWrite("credential expired: 登录密钥已过期（有效期 3 天），需重新扫码登录后才能恢复播放权益")
-				return
-			}
-			if a.ensureKeyFresh() {
-				return
-			}
-			// 签发时间未知（旧版数据）或还较新：尝试验证一次可用性
-			if a.qq.KeyIssuedAt().IsZero() {
-				a.refreshCredential()
-			}
-		}()
+		if last > 0 {
+			a.qq.SetKeyIssuedAt(time.Unix(last, 0))
+		}
+		a.startDailyRefresh()
 	}
 	a.library = NewLocalLibrary(dataDir, filepath.Join(dataDir, "covers"))
 
@@ -193,6 +189,12 @@ func (a *App) DomReady(ctx context.Context) {}
 
 // Shutdown 退出前保存状态、移除托盘、释放单实例锁。
 func (a *App) Shutdown(ctx context.Context) {
+	// 通知后台定时器退出（每日续期 ticker）
+	a.appDoneOnce.Do(func() {
+		if a.appDone != nil {
+			close(a.appDone)
+		}
+	})
 	a.stopTray()
 	if a.singleInstRelease != nil {
 		a.singleInstRelease()
@@ -394,7 +396,7 @@ func (a *App) saveCredentialLocked(c Credential) {
 //
 // 两条入口（首次播放 / 播放中途流过期）都走这里，避免漏掉续期。
 func (a *App) resolveQQStream(mid, mediaMid, albumMid, quality string) (*qqmusic.ResolvedSource, error) {
-	// 阶段 1：临近过期先换 key
+	// 阶段 1：每日续期——距上次刷新超过 24h 就先换 key（每次播放都会走这里）
 	if a.ensureKeyFresh() {
 		return a.qq.ResolvePlay(mid, mediaMid, albumMid, quality)
 	}
@@ -466,7 +468,7 @@ func (a *App) refreshCredential() bool {
 		return false
 	}
 	issued := time.Now()
-	a.qq.SetKeyIssuedAt(issued)
+	a.applyKeyIssuedAt(issued)
 	a.mu.Lock()
 	// 刷新响应通常不带昵称：优先用刷新结果，其次沿用已保存的，避免界面退化成 uin
 	nick := fresh.Nickname
@@ -482,8 +484,9 @@ func (a *App) refreshCredential() bool {
 		OpenID:       fresh.OpenID,
 		RefreshToken: fresh.RefreshToken,
 		AccessToken:  fresh.AccessToken,
-		RefreshKey:   fresh.RefreshKey,
-		ExpireHint:   expireHintFrom(issued),
+		RefreshKey:    fresh.RefreshKey,
+		ExpireHint:    expireHintFrom(issued),
+		KeyRefreshedAt: issued.Unix(),
 	})
 	needNick := a.store.Credential.Nickname == ""
 	a.mu.Unlock()
@@ -510,6 +513,25 @@ func (a *App) refreshCredential() bool {
 //
 // 这是续期的**主要**路径：因为 key 过期后无法用自身刷新，只能在过期前换新。
 // 返回 true 表示刚换过 key（调用方应重试原操作）。
+// applyKeyIssuedAt 记录 key 签发时间，并把「上次刷新时间」一并持久化。
+//
+// 每日续期策略（维护者定）：每次打开 app / 播放歌曲时检查，距上次刷新超过
+// RefreshInterval 就换新 key。刷新时间写在 store 里，重启后不会重复刷。
+func (a *App) applyKeyIssuedAt(issued time.Time) {
+	if a.qq == nil || issued.IsZero() {
+		return
+	}
+	a.qq.SetKeyIssuedAt(issued)
+	a.mu.Lock()
+	a.store.Credential.KeyRefreshedAt = issued.Unix()
+	a.mu.Unlock()
+}
+
+// ensureKeyFresh 按「距上次刷新超过 24 小时」决定是否换新 key。
+//
+// 为什么不按剩余寿命：key 有效期 3 天，过期后无法刷新，所以必须在过期前换；
+// 每日续期（24h）留足 2 天容错，比"过半才换"更安全，也符合维护者的使用习惯。
+// 返回 true 表示刚换过 key（调用方应重试原操作）。
 func (a *App) ensureKeyFresh() bool {
 	if a.qq == nil {
 		return false
@@ -518,14 +540,41 @@ func (a *App) ensureKeyFresh() bool {
 	if issued.IsZero() {
 		return false // 签发时间未知（旧版登录数据），交给失败阶梯
 	}
-	age := a.qq.KeyAge()
-	if age < qqmusic.KeyLifetime/2 {
-		return false // 还很新，不必换
-	}
 	if a.qq.KeyExpired() {
-		return false // 已过期，刷新也无效
+		return false // 已过期，刷新也无效，只能重新扫码
+	}
+	if time.Since(issued) < qqmusic.RefreshInterval {
+		return false // 24 小时内已刷过
 	}
 	return a.refreshCredential()
+}
+
+// startDailyRefresh 启动时检查一次，并挂每日定时器（长时间挂机也能续上）。
+func (a *App) startDailyRefresh() {
+	if a.qq == nil || a.qq.KeyExpired() {
+		return
+	}
+	// 启动时按 24h 判断（ensureKeyFresh 内部已包含该条件）
+	go a.ensureKeyFresh()
+
+	// 后台定时检查：每 30 分钟看一眼，距上次刷新超过 24h 才真正请求
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-a.appDone:
+				return
+			case <-ticker.C:
+				if a.qq == nil || a.qq.KeyExpired() {
+					continue
+				}
+				if a.ensureKeyFresh() {
+					logsWrite("daily refresh: 密钥已按 24h 周期续期")
+				}
+			}
+		}
+	}()
 }
 
 // expireHintFrom 生成人类可读的到期提示（key 签发后 3 天）。

@@ -448,10 +448,10 @@ function AccountSection() {
             label={`已登录：${credential.nickname || credential.uin}`}
             desc={
               expired
-                ? '登录密钥已过期（有效期 3 天），播放权益已失效。请重新扫码登录，登录后会自动保持续期。'
-                : credential.expireHint
-                  ? `密钥有效期内会自动续期，无需手动操作。当前${credential.expireHint}`
-                  : '密钥有效期 3 天，剩余寿命过半时会自动续期'
+                ? '登录密钥已过期（有效期 3 天），播放权益已失效。请重新扫码登录一次，之后会自动保持续期。'
+                : `密钥有效期内每 24 小时自动续期一次（打开应用或播放时检查），无需手动操作。${
+                    credential.expireHint ? `当前${credential.expireHint}` : ''
+                  }`
             }
             control={
               <button className="btn" onClick={async () => {
@@ -467,7 +467,7 @@ function AccountSection() {
           ) : (
             <SettingRow
               label="刷新登录密钥"
-              desc="免扫码换新密钥；一般无需手动点，密钥快到期时会自动续期"
+              desc="免扫码换新密钥；每 24 小时会自动续期，一般无需手动点"
               control={
                 <button
                   className="btn"

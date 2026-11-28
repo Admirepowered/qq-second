@@ -29,6 +29,10 @@ var ErrKeyExpired = errors.New("登录密钥已过期（有效期 3 天），请
 // KeyLifetime 是服务端签发 key 的有效期（实测 keyExpiresIn=259200 秒）。
 const KeyLifetime = 72 * time.Hour
 
+// RefreshInterval 是自动续期周期（维护者定：每次打开 app / 播放时检查，
+// 距上次刷新超过该间隔就换新 key）。24h 相对 72h 寿命留了 2 天容错。
+const RefreshInterval = 24 * time.Hour
+
 // SessionInvalid 清空缓存（session + 刷新状态），用于重新登录后重置。
 func (c *Client) SessionInvalid() {
 	c.mu.Lock()

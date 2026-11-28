@@ -175,6 +175,11 @@ wails build -platform windows/amd64 -ldflags "-s -w" && upx --best --force build
   永远取不到 → 专辑标题为空。
 - **封面 URL 可能是 http**（如 `qpic.y.qq.com`）：secure context 下会被当混合内容
   拦截，表现为封面空白。Go 侧统一走 `httpsURL()`，前端 `artworkSmall()` 也会升级。
+- **密钥每日续期（维护者定的策略）**：`RefreshInterval = 24h`。每次**打开 app**
+  （`startDailyRefresh` 启动时检查 + 30 分钟 ticker）和**每次播放**
+  （`resolveQQStream` 阶段 1）都会判断：距上次刷新超过 24 小时就换新 key。
+  上次刷新时间记在 `Credential.KeyRefreshedAt`（重启不重复刷）。
+  **不要改回「剩余寿命过半才续」**——key 过期后无法刷新，24h 周期留 2 天容错。
 - **musickey 3 天过期 + 权益只认新会话（用户实测「只有重新登录的 cookie 才能听」）**：
   `music.login.LoginServer/Login` 刷新的响应里 `keyExpiresIn=259200`（**3 天**），
   且播放权益校验依赖「新签发的 key + 新申请的 Android session(uid/sid)」这一组合；

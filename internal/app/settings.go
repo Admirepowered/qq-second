@@ -68,6 +68,9 @@ type Credential struct {
 	AccessToken   string `json:"accessToken,omitempty"`
 	RefreshKey    string `json:"refreshKey,omitempty"`
 	ExpireHint    string `json:"expireHint,omitempty"` // 提示用：凭据权益何时到期
+	// KeyRefreshedAt 是上次刷新密钥的时间（unix 秒）。每日续期按它判断
+	// 「距上次刷新是否超过 24 小时」，重启后不会重复刷。
+	KeyRefreshedAt int64 `json:"keyRefreshedAt,omitempty"`
 }
 
 // SessionData 是播放器状态快照（队列、进度等），启动时恢复。

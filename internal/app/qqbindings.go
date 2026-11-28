@@ -90,8 +90,9 @@ func (a *App) QQPollLogin() (*qqmusic.QRLoginPoll, error) {
 			OpenID:       c.OpenID,
 			RefreshToken: c.RefreshToken,
 			AccessToken:  c.AccessToken,
-			RefreshKey:   c.RefreshKey,
-			ExpireHint:   expireHintFrom(issued),
+			RefreshKey:     c.RefreshKey,
+			ExpireHint:     expireHintFrom(issued),
+			KeyRefreshedAt: issued.Unix(),
 		})
 		a.mu.Unlock()
 		logsWrite("login done: 新密钥已保存（有效期 3 天，到期前会自动续期）")
