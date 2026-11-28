@@ -6,6 +6,9 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "postBuildHooks": {
+    "windows/*": "pwsh -NoProfile -File ../../scripts/upx.ps1 ${bin}"
+  },
   "author": {
     "name": "qq-second"
   }
